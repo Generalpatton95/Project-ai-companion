@@ -238,17 +238,4 @@ This project is licensed under the MIT License. See the LICENSE
 
 
 
----
-
-
-
-I can also create a \*\*more “user-friendly” version\*\* that includes screenshots, setup shortcuts, and step-by-step instructions for testing the AI assistant — great for future collaborators or demo purposes.  
-
-
-
-Do you want me to make that enhanced version?
-
-
-
-
 
