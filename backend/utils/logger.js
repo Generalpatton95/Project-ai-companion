@@ -1,8 +1,3 @@
-// ============================================================================
-// FILE: backend/utils/logger.js
-// Winston Logger Configuration
-// ============================================================================
-
 const winston = require('winston');
 const config = require('../config');
 

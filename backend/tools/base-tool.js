@@ -1,22 +1,19 @@
-// ============================================================================
-// FILE: backend/tools/base-tool.js
-// Base Tool Class - All tools inherit from this
-// ============================================================================
-
 class BaseTool {
   constructor() {
-    if (!this.name) {
-      throw new Error('Tool must have a name');
-    }
-    if (!this.description) {
-      throw new Error('Tool must have a description');
-    }
+    // Don't check here - let child classes set properties first
   }
 
   /**
    * Get tool schema for LLM function calling
    */
   getSchema() {
+    if (!this.name) {
+      throw new Error('Tool must have a name property');
+    }
+    if (!this.description) {
+      throw new Error('Tool must have a description property');
+    }
+
     return {
       name: this.name,
       description: this.description,

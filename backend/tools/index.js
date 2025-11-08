@@ -1,12 +1,5 @@
-// ============================================================================
-// FILE: backend/tools/index.js
-// Tool Registry - Manages all available tools
-// ============================================================================
-
 const { GameAPITool } = require('./game-api.tool');
-// Import other tools as you create them
-// const { WebSearchTool } = require('./web-search.tool');
-// const { DatabaseTool } = require('./database.tool');
+const logger = require('../utils/logger');
 
 class ToolRegistry {
   constructor() {
@@ -56,7 +49,7 @@ class ToolRegistry {
    */
   registerDefaultTools() {
     this.register(new GameAPITool());
-    // Add more default tools here
+    // Add more default tools here as you create them
     // this.register(new WebSearchTool());
     // this.register(new DatabaseTool());
   }

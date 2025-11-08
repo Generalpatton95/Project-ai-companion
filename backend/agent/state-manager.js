@@ -1,20 +1,12 @@
-// ============================================================================
-// FILE: backend/agent/state-manager.js
-// State Manager - Manages agent task state
-// ============================================================================
-
 const redis = require('../config/redis');
 const logger = require('../utils/logger');
 
 class StateManager {
   constructor() {
     this.redis = redis;
-    this.ttl = 3600; // 1 hour
+    this.ttl = 3600;
   }
 
-  /**
-   * Create new task state
-   */
   async createTask(taskId, task) {
     const state = {
       taskId,
@@ -32,9 +24,6 @@ class StateManager {
     return state;
   }
 
-  /**
-   * Add iteration to task
-   */
   async addIteration(taskId, iterationData) {
     const state = await this.getTask(taskId);
     
@@ -49,9 +38,6 @@ class StateManager {
     await this.saveState(taskId, state);
   }
 
-  /**
-   * Record tool execution
-   */
   async recordToolExecution(taskId, toolData) {
     const state = await this.getTask(taskId);
     
@@ -69,9 +55,6 @@ class StateManager {
     await this.saveState(taskId, state);
   }
 
-  /**
-   * Complete task
-   */
   async completeTask(taskId, result) {
     const state = await this.getTask(taskId);
     
@@ -83,9 +66,6 @@ class StateManager {
     await this.saveState(taskId, state);
   }
 
-  /**
-   * Fail task
-   */
   async failTask(taskId, error) {
     const state = await this.getTask(taskId);
     
@@ -97,9 +77,6 @@ class StateManager {
     await this.saveState(taskId, state);
   }
 
-  /**
-   * Get task state
-   */
   async getTask(taskId) {
     const key = `task:${taskId}`;
     const data = await this.redis.get(key);
@@ -111,17 +88,11 @@ class StateManager {
     return JSON.parse(data);
   }
 
-  /**
-   * Save task state
-   */
   async saveState(taskId, state) {
     const key = `task:${taskId}`;
     await this.redis.setex(key, this.ttl, JSON.stringify(state));
   }
 
-  /**
-   * Delete task state
-   */
   async deleteTask(taskId) {
     const key = `task:${taskId}`;
     await this.redis.del(key);

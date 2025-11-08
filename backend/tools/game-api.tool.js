@@ -1,44 +1,40 @@
-// ============================================================================
-// FILE: backend/tools/game-api.tool.js
-// Game API Tool - Example implementation for Riot Games API
-// ============================================================================
-
 const { BaseTool } = require('./base-tool');
 const { RiotGamesClient } = require('../integrations/riot-games');
 const logger = require('../utils/logger');
 
 class GameAPITool extends BaseTool {
+  // Set properties as class fields (before constructor)
+  name = 'game_api';
+  description = 'Fetch player data, match history, and statistics from game APIs (Riot Games, Steam, etc.)';
+  parameters = {
+    game: {
+      type: 'string',
+      description: 'Game identifier (e.g., "lol", "valorant", "dota2")',
+      enum: ['lol', 'valorant', 'tft']
+    },
+    endpoint: {
+      type: 'string',
+      description: 'API endpoint to call',
+      enum: ['summoner', 'match_history', 'match_details', 'ranked_stats']
+    },
+    player_id: {
+      type: 'string',
+      description: 'Player identifier (summoner name, PUUID, etc.)'
+    },
+    region: {
+      type: 'string',
+      description: 'Game region (e.g., "na1", "euw1", "kr")',
+      default: 'na1'
+    },
+    params: {
+      type: 'object',
+      description: 'Additional parameters for the API call'
+    }
+  };
+  required = ['game', 'endpoint', 'player_id'];
+
   constructor() {
     super();
-    this.name = 'game_api';
-    this.description = 'Fetch player data, match history, and statistics from game APIs (Riot Games, Steam, etc.)';
-    this.parameters = {
-      game: {
-        type: 'string',
-        description: 'Game identifier (e.g., "lol", "valorant", "dota2")',
-        enum: ['lol', 'valorant', 'tft']
-      },
-      endpoint: {
-        type: 'string',
-        description: 'API endpoint to call',
-        enum: ['summoner', 'match_history', 'match_details', 'ranked_stats']
-      },
-      player_id: {
-        type: 'string',
-        description: 'Player identifier (summoner name, PUUID, etc.)'
-      },
-      region: {
-        type: 'string',
-        description: 'Game region (e.g., "na1", "euw1", "kr")',
-        default: 'na1'
-      },
-      params: {
-        type: 'object',
-        description: 'Additional parameters for the API call'
-      }
-    };
-    this.required = ['game', 'endpoint', 'player_id'];
-    
     this.riotClient = new RiotGamesClient();
   }
 
