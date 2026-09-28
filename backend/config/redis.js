@@ -3,9 +3,12 @@
 // Redis Client Configuration
 // ============================================================================
 
-const Redis = require('ioredis');
-const config = require('./index');
-const logger = require('../utils/logger');
+import Redis from 'ioredis';
+import { loadConfig } from './index.js';
+import logger from '../utils/logger.js';
+
+// TODO(redis spec): config.redis now has only `url`; the host/port/password fallback is always undefined.
+const config = loadConfig();
 
 let redisClient;
 
@@ -39,4 +42,4 @@ function createRedisClient() {
   return redisClient;
 }
 
-module.exports = createRedisClient();
+export default createRedisClient();

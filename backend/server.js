@@ -1,65 +1,21 @@
-// ============================================================================
-// FILE: backend/server.js
-// Main Server Entry Point
-// ============================================================================
+import 'dotenv/config';
+import { loadConfig } from './config/index.js';
+import { createLogger } from './utils/logger.js';
+import { ConfigError } from './utils/errors.js';
+import { createApp } from './app.js';
 
-const express = require('express');
-const cors = require('cors');
-const config = require('./config');
-const logger = require('./utils/logger');
-const { errorMiddleware } = require('./middleware/error.middleware');
+let config;
+try {
+  config = loadConfig();
+} catch (err) {
+  if (!(err instanceof ConfigError)) throw err;
+  // No logger yet: config is what builds it. Key names only, never values (R1.3).
+  console.error(`Invalid config: ${err.keys.join(', ')}`);
+  process.exit(1);
+}
 
-// Import routes
-const agentRoutes = require('./routes/agent.routes');
-// Add other routes as you create them
-// const authRoutes = require('./routes/auth.routes');
-// const userRoutes = require('./routes/user.routes');
+const logger = createLogger(config);
 
-const app = express();
-
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Request logging
-app.use((req, res, next) => {
-  logger.info('Request', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip
-  });
-  next();
+createApp(config, { logger }).listen(config.port, () => {
+  logger.info(`Server listening on http://localhost:${config.port}`, { port: config.port, env: config.env });
 });
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
-});
-
-// API routes
-app.use('/api/agent', agentRoutes);
-// app.use('/api/auth', authRoutes);
-// app.use('/api/users', userRoutes);
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handler (must be last)
-app.use(errorMiddleware);
-
-// Start server
-const PORT = config.app.port;
-
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
-  logger.info(`Environment: ${config.app.env}`);
-});
-
-module.exports = app;

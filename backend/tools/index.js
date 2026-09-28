@@ -1,5 +1,5 @@
-const { GameAPITool } = require('./game-api.tool');
-const logger = require('../utils/logger');
+import { GameAPITool } from './game-api.tool.js';
+import logger from '../utils/logger.js';
 
 class ToolRegistry {
   constructor() {
@@ -55,4 +55,4 @@ class ToolRegistry {
   }
 }
 
-module.exports = { ToolRegistry };
+export { ToolRegistry };

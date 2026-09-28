@@ -3,9 +3,11 @@
 // Authentication Middleware
 // ============================================================================
 
-const jwt = require('jsonwebtoken');
-const config = require('../config');
-const logger = require('../utils/logger');
+import jwt from 'jsonwebtoken';
+import { loadConfig } from '../config/index.js';
+import logger from '../utils/logger.js';
+
+const config = loadConfig();
 
 function authMiddleware(req, res, next) {
   try {
@@ -43,4 +45,4 @@ function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = { authMiddleware };
+export { authMiddleware };

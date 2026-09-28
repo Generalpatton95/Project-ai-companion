@@ -3,9 +3,8 @@
 // Rate Limiting Middleware
 // ============================================================================
 
-const redis = require('../config/redis');
-const config = require('../config');
-const logger = require('../utils/logger');
+import redis from '../config/redis.js';
+import logger from '../utils/logger.js';
 
 const RATE_LIMITS = {
   query: { max: 50, window: 900000 },     // 50 per 15 min
@@ -51,4 +50,4 @@ function rateLimitMiddleware(type = 'query') {
   };
 }
 
-module.exports = { rateLimitMiddleware };
+export { rateLimitMiddleware };

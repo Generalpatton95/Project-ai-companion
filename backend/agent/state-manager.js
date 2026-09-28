@@ -1,5 +1,5 @@
-const redis = require('../config/redis');
-const logger = require('../utils/logger');
+import redis from '../config/redis.js';
+import logger from '../utils/logger.js';
 
 class StateManager {
   constructor() {
@@ -99,4 +99,4 @@ class StateManager {
   }
 }
 
-module.exports = { StateManager };
+export { StateManager };

@@ -3,9 +3,12 @@
 // Claude API Client
 // ============================================================================
 
-const Anthropic = require('@anthropic-ai/sdk');
-const config = require('../config');
-const logger = require('../utils/logger');
+import Anthropic from '@anthropic-ai/sdk';
+import { loadConfig } from '../config/index.js';
+import logger from '../utils/logger.js';
+
+// TODO(spec 010): config.anthropic.maxTokens no longer exists; the 4000 fallback always applies.
+const config = loadConfig();
 
 class ClaudeProvider {
   constructor() {
@@ -85,4 +88,4 @@ class ClaudeProvider {
   }
 }
 
-module.exports = { ClaudeProvider };
+export { ClaudeProvider };

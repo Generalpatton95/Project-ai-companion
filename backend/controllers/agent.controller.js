@@ -3,9 +3,9 @@
 // Agent Controller - Handles agent-related requests
 // ============================================================================
 
-const { AgentOrchestrator } = require('../agent/orchestrator');
-const { StateManager } = require('../agent/state-manager');
-const logger = require('../utils/logger');
+import { AgentOrchestrator } from '../agent/orchestrator.js';
+import { StateManager } from '../agent/state-manager.js';
+import logger from '../utils/logger.js';
 
 class AgentController {
   constructor() {
@@ -90,4 +90,4 @@ class AgentController {
   }
 }
 
-module.exports = { AgentController };
+export { AgentController };

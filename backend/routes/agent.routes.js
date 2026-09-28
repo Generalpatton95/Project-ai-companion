@@ -3,10 +3,10 @@
 // Agent API Routes
 // ============================================================================
 
-const express = require('express');
-const { AgentController } = require('../controllers/agent.controller');
-const { authMiddleware } = require('../middleware/auth.middleware');
-const { rateLimitMiddleware } = require('../middleware/rate-limit.middleware');
+import express from 'express';
+import { AgentController } from '../controllers/agent.controller.js';
+import { authMiddleware } from '../middleware/auth.middleware.js';
+import { rateLimitMiddleware } from '../middleware/rate-limit.middleware.js';
 
 const router = express.Router();
 const agentController = new AgentController();
@@ -53,4 +53,4 @@ router.get('/task/:taskId', async (req, res, next) => {
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,7 +1,7 @@
-const { ToolRegistry } = require('../tools');
-const { StateManager } = require('./state-manager');
-const { ClaudeProvider } = require('../integrations/claude');
-const logger = require('../utils/logger');
+import { ToolRegistry } from '../tools/index.js';
+import { StateManager } from './state-manager.js';
+import { ClaudeProvider } from '../integrations/claude.js';
+import logger from '../utils/logger.js';
 
 class AgentOrchestrator {
   constructor(options = {}) {
@@ -280,4 +280,4 @@ Always think step by step and use the available tools to gather information befo
   }
 }
 
-module.exports = { AgentOrchestrator };
+export { AgentOrchestrator };

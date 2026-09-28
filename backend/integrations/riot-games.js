@@ -3,9 +3,12 @@
 // Riot Games API Client
 // ============================================================================
 
-const axios = require('axios');
-const config = require('../config');
-const logger = require('../utils/logger');
+import axios from 'axios';
+import { loadConfig } from '../config/index.js';
+import logger from '../utils/logger.js';
+
+// TODO(spec 007): config.riotGames was renamed to config.riot, so apiKey below is undefined.
+const config = loadConfig();
 
 class RiotGamesClient {
   constructor() {
@@ -167,4 +170,4 @@ class RiotGamesClient {
   }
 }
 
-module.exports = { RiotGamesClient };
+export { RiotGamesClient };

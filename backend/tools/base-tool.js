@@ -72,4 +72,4 @@ class BaseTool {
   }
 }
 
-module.exports = { BaseTool };
+export { BaseTool };

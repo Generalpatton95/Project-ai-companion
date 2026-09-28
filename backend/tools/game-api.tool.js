@@ -1,6 +1,6 @@
-const { BaseTool } = require('./base-tool');
-const { RiotGamesClient } = require('../integrations/riot-games');
-const logger = require('../utils/logger');
+import { BaseTool } from './base-tool.js';
+import { RiotGamesClient } from '../integrations/riot-games.js';
+import logger from '../utils/logger.js';
 
 class GameAPITool extends BaseTool {
   // Set properties as class fields (before constructor)
@@ -94,4 +94,4 @@ class GameAPITool extends BaseTool {
   }
 }
 
-module.exports = { GameAPITool };
+export { GameAPITool };
