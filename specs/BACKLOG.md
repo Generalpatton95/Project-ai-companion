@@ -6,7 +6,8 @@ Status: `—` not started · `Req` requirements drafted · `Design` · `Tasks` �
 | # | Spec | Roadmap | Status | Notes |
 |---|---|---|---|---|
 | 001 | Backend foundation | Pre-req | Done | ESM, config, logging, errors, health, test harness |
-| 002 | Users & auth | Pre-req | — | Identity is needed for per-user limits and mood history |
+| 002 | Users & auth | Pre-req | Build | Identity is needed for per-user limits and mood history |
+| 002b | Email verification & password reset | Before public launch | — | Deferred from 002 (D3); needs a transactional email service |
 | 003 | Usage tracking & limits | Wk 1–2 | — | Safeguard 6; the 5 analyses/day limit |
 | 004 | Crisis detection & response | Wk 1–2 | — | Safeguard 2; needs professional review |
 | 005 | Mood check-ins | Wk 1–2 | — | Core feature 5 |
@@ -19,5 +20,6 @@ Status: `—` not started · `Req` requirements drafted · `Design` · `Tasks` �
 | 012 | Tilt detection | Wk 7–8 | — | Safeguard 4 |
 | 013 | "I'm AI" reminders & human connection prompts | Wk 7–8 | — | Safeguards 3 & 5 |
 | 014 | Onboarding, settings, resources pages | Wk 7–8 | — | Frontend |
+| 015 | Deployment | Wk 11–12 | — | Neon (DB), Vercel (frontend), long-running backend host (Railway/Render/Fly); move rate limits to shared storage; `trust proxy`; secrets |
 
 Frontend work for each feature goes in the same spec as its backend work, so each spec covers the whole feature end to end.
