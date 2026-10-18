@@ -79,7 +79,7 @@ describe('AuthService', () => {
   });
 
   test('refuses to issue tokens without a configured secret', async () => {
-    const unconfigured = new AuthService({ users: new FakeUsers(), jwtSecret: undefined, bcryptRounds: 4 });
+    const unconfigured = new AuthService({ users: new FakeUsers(), jwtSecret: '', bcryptRounds: 4 });
     await expect(unconfigured.register(valid)).rejects.toThrow('JWT_SECRET is not configured');
   });
 
