@@ -30,8 +30,14 @@ describe('Home session flow', () => {
   });
 
   it('walks from welcome through a session with a break reminder', async () => {
-    service.sendHeartbeat.mockResolvedValue(status(121, { reminder }));
-    service.snoozeReminders.mockResolvedValue(status(121, { snoozedUntil: '2026-10-18T14:31:00Z' }));
+    // Heartbeats report the reminder until snooze is called, then report snoozed
+    let snoozed = false;
+    const snoozedStatus = status(122, { snoozedUntil: '2026-10-18T14:31:00Z' });
+    service.sendHeartbeat.mockImplementation(async () => (snoozed ? snoozedStatus : status(121, { reminder })));
+    service.snoozeReminders.mockImplementation(async () => {
+      snoozed = true;
+      return snoozedStatus;
+    });
 
     render(<Home heartbeatMs={20} />);
 
@@ -46,7 +52,6 @@ describe('Home session flow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent("You've been playing for a while!");
 
     // Snoozing hides it
-    service.sendHeartbeat.mockResolvedValue(status(122, { snoozedUntil: '2026-10-18T14:31:00Z' }));
     await userEvent.click(screen.getByRole('button', { name: 'Remind me in 30 min' }));
     expect(service.snoozeReminders).toHaveBeenCalledWith(30);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
