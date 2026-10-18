@@ -55,7 +55,8 @@ module.exports = {
 
   agent: {
     maxIterations: 10,
-    timeout: 30000, // 30 seconds
+    // Multi-step analysis at high effort can take minutes
+    timeout: parseInt(process.env.AGENT_TIMEOUT_MS) || 300000, // 5 minutes
     costLimits: {
       free: parseFloat(process.env.MAX_MONTHLY_COST_FREE) || 0.50,
       basic: parseFloat(process.env.MAX_MONTHLY_COST_BASIC) || 5.00,

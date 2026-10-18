@@ -63,9 +63,10 @@ describe('ClaudeProvider', () => {
 });
 
 describe('AgentOrchestrator tool loop', () => {
-  function build(client, toolExecute) {
+  function build(client, toolExecute, extra = {}) {
     const tool = { name: 'game_api', execute: toolExecute };
     return new AgentOrchestrator({
+      ...extra,
       llm: new ClaudeProvider({ client, model: 'claude-opus-5-5', effort: 'high' }),
       toolRegistry: { getToolSchemas: () => TOOLS, getTool: () => tool },
       stateManager: {
@@ -124,5 +125,61 @@ describe('AgentOrchestrator tool loop', () => {
 
     await orchestrator.executeTask({ type: 'match_analysis' });
     expect(client.requests[1].messages[2].content[0].content).toBe('null');
+  });
+});
+
+describe('AgentOrchestrator timeout', () => {
+  const stateManager = {
+    createTask: async () => ({ iterations: 0 }),
+    addIteration: async () => {},
+    recordToolExecution: async () => {},
+    completeTask: async () => {},
+    failTask: async () => {},
+    getTask: async () => ({ iterations: 0 })
+  };
+  const registry = { getToolSchemas: () => TOOLS, getTool: () => ({ execute: async () => ({ success: true, data: {} }) }) };
+
+  test('defaults to the configured timeout (5 minutes)', () => {
+    const orchestrator = new AgentOrchestrator({ llm: {}, toolRegistry: registry, stateManager });
+    expect(orchestrator.timeout).toBe(300000);
+  });
+
+  test('a timeout aborts the in-flight request and stops the loop', async () => {
+    const client = new FakeAnthropic();
+    // A request that only settles when it is aborted
+    client.queue((options) => new Promise((resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new Error('Request was aborted.')));
+    }));
+    const orchestrator = new AgentOrchestrator({
+      llm: new ClaudeProvider({ client }),
+      toolRegistry: registry,
+      stateManager,
+      timeout: 50
+    });
+
+    const result = await orchestrator.executeTask({ type: 'match_analysis' });
+
+    expect(result).toMatchObject({ status: 'failed', error: 'Task timeout' });
+    expect(client.requestOptions[0].signal.aborted).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(client.requests).toHaveLength(1);
+  });
+
+  test('a finished task clears its timer', async () => {
+    const client = new FakeAnthropic();
+    client.queue(FakeAnthropic.reply('All done.'));
+    const clearSpy = jest.spyOn(global, 'clearTimeout');
+    const orchestrator = new AgentOrchestrator({
+      llm: new ClaudeProvider({ client }),
+      toolRegistry: registry,
+      stateManager,
+      timeout: 60000
+    });
+
+    const result = await orchestrator.executeTask({ type: 'match_analysis' });
+
+    expect(result.status).toBe('completed');
+    expect(clearSpy).toHaveBeenCalled();
+    clearSpy.mockRestore();
   });
 });

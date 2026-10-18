@@ -63,7 +63,10 @@ class ClaudeProvider {
         toolCount: tools?.length || 0
       });
 
-      const response = await this.getClient().beta.messages.create(requestParams);
+      const response = await this.getClient().beta.messages.create(
+        requestParams,
+        options.signal ? { signal: options.signal } : undefined
+      );
 
       logger.debug('Claude API response', {
         stopReason: response.stop_reason,
