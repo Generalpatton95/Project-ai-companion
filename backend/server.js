@@ -13,6 +13,7 @@ const { errorMiddleware } = require('./middleware/error.middleware');
 const agentRoutes = require('./routes/agent.routes');
 const { createSafeguardsRouter } = require('./routes/safeguards.routes');
 const { createAuthRouter } = require('./routes/auth.routes');
+const { createChatRouter } = require('./routes/chat.routes');
 // Add other routes as you create them
 // const userRoutes = require('./routes/user.routes');
 
@@ -46,6 +47,7 @@ app.get('/health', (req, res) => {
 app.use('/api/agent', agentRoutes);
 app.use('/api/safeguards', createSafeguardsRouter());
 app.use('/api/auth', createAuthRouter());
+app.use('/api/chat', createChatRouter());
 // app.use('/api/users', userRoutes);
 
 // 404 handler
