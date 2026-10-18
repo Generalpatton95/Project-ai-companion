@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react';
 import SupportResources from '../safeguards/SupportResources.jsx';
 
-export default function MessageList({ messages, typing }) {
+export default function MessageList({ messages, typing, busy = false }) {
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -14,8 +14,9 @@ export default function MessageList({ messages, typing }) {
     }
   }, [messages, typing]);
 
+  // aria-busy holds screen-reader announcements until a streamed reply is complete
   return (
-    <div className="message-list" role="log" aria-live="polite" aria-label="Conversation">
+    <div className="message-list" role="log" aria-live="polite" aria-busy={busy} aria-label="Conversation">
       {messages.length === 0 && !typing && (
         <p className="muted empty">Ask about a matchup, a build, or how your last game went.</p>
       )}

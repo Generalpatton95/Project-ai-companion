@@ -34,6 +34,13 @@ const REFUSAL_REPLY =
   "I can't help with that one, but I'm happy to keep talking about your games. What's on your mind?";
 const EMPTY_REPLY = "Sorry, I lost my train of thought there. Could you ask that again?";
 
+class ChatAbortedError extends Error {
+  constructor() {
+    super('Chat request aborted');
+    this.name = 'ChatAbortedError';
+  }
+}
+
 function validatePersonality(personality) {
   if (!PERSONALITIES[personality]) {
     throw new ValidationError(`personality must be one of: ${Object.keys(PERSONALITIES).join(', ')}`);
@@ -49,6 +56,22 @@ function textOf(content) {
     .map((block) => block.text)
     .join('')
     .trim();
+}
+
+/**
+ * Make an assistant turn safe to replay. After a mid-reply fallback the
+ * content holds the declined model's partial output before the last
+ * `fallback` block; only its text may be echoed back (its thinking and other
+ * model-internal blocks would be rejected or dropped).
+ */
+function prepareForReplay(content) {
+  const lastFallback = content.map((b) => b.type).lastIndexOf('fallback');
+  if (lastFallback === -1) {
+    return content;
+  }
+  return content.filter((block, index) =>
+    index >= lastFallback || block.type === 'text' || block.type === 'fallback'
+  );
 }
 
 /**
@@ -130,7 +153,12 @@ class ChatService {
     }
   }
 
-  async sendMessage(user, conversationId, text) {
+  /**
+   * Send a message and get the companion's reply. The reply streams from
+   * Claude; pass onText to receive text as it arrives, and signal to stop the
+   * request (nothing is saved for an aborted turn).
+   */
+  async sendMessage(user, conversationId, text, { onText, signal } = {}) {
     const content = typeof text === 'string' ? text.trim() : '';
     if (!content) {
       throw new ValidationError('Message cannot be empty');
@@ -179,7 +207,7 @@ class ChatService {
 
     let response;
     try {
-      response = await this.getClient().beta.messages.create({
+      const stream = this.getClient().beta.messages.stream({
         model: this.model,
         max_tokens: MAX_TOKENS,
         betas: ['server-side-fallback-2026-07-01'],
@@ -189,8 +217,15 @@ class ChatService {
         cache_control: { type: 'ephemeral' },
         system: SYSTEM_PROMPT,
         messages: apiMessages
-      });
+      }, { signal });
+      if (onText) {
+        stream.on('text', (delta) => onText(delta));
+      }
+      response = await stream.finalMessage();
     } catch (error) {
+      if (signal && signal.aborted) {
+        throw new ChatAbortedError();
+      }
       if (error instanceof Anthropic.APIError) {
         logger.error('Claude API error in chat', { status: error.status, error: error.message });
       } else {
@@ -206,7 +241,7 @@ class ChatService {
     } else {
       const replyText = textOf(response.content);
       assistant = replyText
-        ? { role: 'assistant', content: response.content, displayText: replyText }
+        ? { role: 'assistant', content: prepareForReplay(response.content), displayText: replyText }
         : { role: 'assistant', content: EMPTY_REPLY };
     }
 
@@ -215,4 +250,10 @@ class ChatService {
   }
 }
 
-module.exports = { ChatService, DEFAULT_PERSONALITY, MAX_MESSAGE_LENGTH };
+module.exports = {
+  ChatService,
+  ChatAbortedError,
+  prepareForReplay,
+  DEFAULT_PERSONALITY,
+  MAX_MESSAGE_LENGTH
+};

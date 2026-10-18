@@ -1,5 +1,5 @@
 const Anthropic = require('@anthropic-ai/sdk');
-const { ChatService } = require('../../../services/chat/chat.service');
+const { ChatService, ChatAbortedError, prepareForReplay } = require('../../../services/chat/chat.service');
 const { SYSTEM_PROMPT, buildModeNote } = require('../../../services/chat/prompts');
 const { FakeChatRepository } = require('../../helpers/fake-chat-repository');
 const { FakeAnthropic } = require('../../helpers/fake-anthropic');
@@ -143,6 +143,58 @@ describe('ChatService', () => {
     await expect(service.sendMessage({ id: 'someone-else' }, conversation.id, 'hi')).rejects.toMatchObject({ statusCode: 404 });
     await expect(service.getConversation(user, 'not-a-uuid')).rejects.toMatchObject({ statusCode: 404 });
     await expect(service.createConversation(user, { personality: 'drill-sergeant' })).rejects.toThrow('personality must be');
+  });
+
+  test('streams reply text to onText as it arrives', async () => {
+    const conversation = await service.createConversation(user);
+    client.queue(FakeAnthropic.reply('Ward the river bush before three minutes.'));
+    const chunks = [];
+
+    const result = await service.sendMessage(user, conversation.id, 'tips?', { onText: (t) => chunks.push(t) });
+
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks.join('')).toBe('Ward the river bush before three minutes.');
+    expect(result.messages[1].text).toBe('Ward the river bush before three minutes.');
+  });
+
+  test('an aborted stream stores nothing', async () => {
+    const conversation = await service.createConversation(user);
+    const controller = new AbortController();
+    client.queue(FakeAnthropic.reply('This reply is long enough to be cut off part way through.'));
+
+    const sending = service.sendMessage(user, conversation.id, 'hello', {
+      signal: controller.signal,
+      onText: () => controller.abort()
+    });
+
+    await expect(sending).rejects.toBeInstanceOf(ChatAbortedError);
+    expect(client.requestOptions[0].signal).toBe(controller.signal);
+    expect((await service.getConversation(user, conversation.id)).messages).toEqual([]);
+  });
+
+  test('after a mid-reply fallback only the partial text is replayed', async () => {
+    const conversation = await service.createConversation(user);
+    const content = [
+      { type: 'thinking', thinking: '', signature: 'declined-model-sig' },
+      { type: 'text', text: 'Start of the answer, ' },
+      { type: 'fallback', from: { model: 'claude-opus-5-5' }, to: { model: 'claude-opus-5' } },
+      { type: 'thinking', thinking: '', signature: 'fallback-model-sig' },
+      { type: 'text', text: 'and the rest of it.' }
+    ];
+    client.queue({ ...FakeAnthropic.reply(''), content }, FakeAnthropic.reply('next'));
+
+    const result = await service.sendMessage(user, conversation.id, 'question');
+    expect(result.messages[1].text).toBe('Start of the answer, and the rest of it.');
+
+    await service.sendMessage(user, conversation.id, 'follow-up');
+    const replayed = client.requests[1].messages[2].content;
+    expect(replayed.map((b) => b.type)).toEqual(['text', 'fallback', 'thinking', 'text']);
+    expect(replayed[2].signature).toBe('fallback-model-sig');
+  });
+
+  test('prepareForReplay leaves ordinary replies untouched', () => {
+    const content = FakeAnthropic.reply('hi').content;
+    expect(prepareForReplay(content)).toBe(content);
   });
 
   test('a failing mood lookup falls back to a balanced tone', async () => {

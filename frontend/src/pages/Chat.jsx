@@ -83,10 +83,23 @@ export default function Chat() {
   const send = async () => {
     const content = draft.trim();
     const pendingId = `pending-${Date.now()}`;
+    const streamingId = `streaming-${Date.now()}`;
+    const isTemporary = (m) => m.id === pendingId || m.id === streamingId;
     setSending(true);
     setError(null);
     setMessages((current) => [...current, { id: pendingId, role: 'user', text: content }]);
     setDraft('');
+
+    // Grow a temporary assistant message as reply text streams in
+    const onDelta = (text) => {
+      setMessages((current) => {
+        const existing = current.find((m) => m.id === streamingId);
+        if (!existing) {
+          return [...current, { id: streamingId, role: 'assistant', text }];
+        }
+        return current.map((m) => (m.id === streamingId ? { ...m, text: m.text + text } : m));
+      });
+    };
 
     try {
       let active = conversation;
@@ -95,8 +108,10 @@ export default function Chat() {
         setConversation(active);
         setConversations((list) => [active, ...list]);
       }
-      const result = await chatService.sendMessage(active.id, content);
-      setMessages((current) => [...current.filter((m) => m.id !== pendingId), ...result.messages]);
+      const result = await chatService.sendMessageStream(active.id, content, { onDelta });
+      // The saved turn replaces the temporary messages (it is the source of
+      // truth, e.g. if the reply was refused after text had streamed)
+      setMessages((current) => [...current.filter((m) => !isTemporary(m)), ...result.messages]);
       if (result.conversation.endedReason) {
         setConversation((c) => ({ ...c, endedReason: result.conversation.endedReason }));
       }
@@ -104,7 +119,7 @@ export default function Chat() {
         c.id === active.id ? { ...c, title: c.title || content.slice(0, 60) } : c
       ));
     } catch (err) {
-      setMessages((current) => current.filter((m) => m.id !== pendingId));
+      setMessages((current) => current.filter((m) => !isTemporary(m)));
       setDraft(content);
       setError(err.status ? err.message : "Couldn't reach the server. Your message wasn't sent.");
     } finally {
@@ -148,7 +163,11 @@ export default function Chat() {
 
       <PersonalitySelector value={personality} onChange={changePersonality} disabled={sending || ended} />
 
-      <MessageList messages={messages} typing={sending} />
+      <MessageList
+        messages={messages}
+        typing={sending && !messages.some((m) => m.id.startsWith('streaming-'))}
+        busy={sending}
+      />
 
       {error && <p className="error" role="alert">{error}</p>}
 

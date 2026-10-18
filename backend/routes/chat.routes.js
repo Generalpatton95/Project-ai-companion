@@ -4,7 +4,8 @@
 // ============================================================================
 
 const express = require('express');
-const { ChatService } = require('../services/chat/chat.service');
+const { ChatService, ChatAbortedError } = require('../services/chat/chat.service');
+const logger = require('../utils/logger');
 const { authMiddleware } = require('../middleware/auth.middleware');
 const { rateLimitMiddleware } = require('../middleware/rate-limit.middleware');
 
@@ -57,10 +58,76 @@ function createChatRouter({
   /**
    * POST /api/chat/conversations/:id/messages
    * Body: { content }
+   *
+   * With `Accept: text/event-stream` the reply streams as server-sent events:
+   *   delta  { text }                                  - reply text as it arrives
+   *   done   { messages, safeguard, conversation }      - the saved turn
+   *   error  { error, status }                         - failure after streaming began
+   * Otherwise the response is the `done` payload as JSON.
    */
-  router.post('/conversations/:id/messages', rateLimit, handle((req) =>
-    chatService.sendMessage(req.user, req.params.id, (req.body || {}).content)
-  ));
+  router.post('/conversations/:id/messages', rateLimit, async (req, res, next) => {
+    const content = (req.body || {}).content;
+    const wantsStream = (req.get('accept') || '').includes('text/event-stream');
+
+    if (!wantsStream) {
+      try {
+        return res.json(await chatService.sendMessage(req.user, req.params.id, content));
+      } catch (error) {
+        return next(error);
+      }
+    }
+
+    const controller = new AbortController();
+    let started = false;
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    const start = () => {
+      if (!started) {
+        started = true;
+        res.status(200).set({
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive'
+        });
+        res.flushHeaders();
+      }
+    };
+
+    // Stop the Claude request if the browser goes away mid-reply
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        controller.abort();
+      }
+    });
+
+    try {
+      const result = await chatService.sendMessage(req.user, req.params.id, content, {
+        signal: controller.signal,
+        onText: (text) => {
+          start();
+          send('delta', { text });
+        }
+      });
+      start();
+      send('done', result);
+      res.end();
+    } catch (error) {
+      if (error instanceof ChatAbortedError) {
+        logger.info('Chat stream closed by client', { userId: req.user.id });
+        return undefined;
+      }
+      if (!started) {
+        // Nothing streamed yet: a normal JSON error with its status code
+        return next(error);
+      }
+      logger.error('Chat stream failed', { error: error.message });
+      send('error', {
+        error: error.statusCode ? error.message : 'Something went wrong. Please try again.',
+        status: error.statusCode || 500
+      });
+      res.end();
+    }
+    return undefined;
+  });
 
   return router;
 }

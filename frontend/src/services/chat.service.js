@@ -3,7 +3,7 @@
 // Client for /api/chat (see backend/routes/chat.routes.js)
 // ============================================================================
 
-import { apiRequest } from './api.js';
+import { apiRequest, apiStream } from './api.js';
 
 export async function listConversations() {
   const { conversations } = await apiRequest('/chat/conversations');
@@ -29,10 +29,27 @@ export async function setPersonality(id, personality) {
   });
   return conversation;
 }
-
-export function sendMessage(id, content) {
-  return apiRequest(`/chat/conversations/${id}/messages`, {
-    method: 'POST',
-    body: { content }
+/**
+ * Send a message and stream the reply. onDelta receives reply text as it
+ * arrives; resolves with the saved turn ({ messages, safeguard, conversation }).
+ */
+export async function sendMessageStream(id, content, { onDelta, signal } = {}) {
+  let result = null;
+  await apiStream(`/chat/conversations/${id}/messages`, {
+    body: { content },
+    signal,
+    onEvent: (event, data) => {
+      if (event === 'delta' && onDelta) {
+        onDelta(data.text);
+      } else if (event === 'done') {
+        result = data;
+      } else if (event === 'error') {
+        throw Object.assign(new Error(data.error), { status: data.status });
+      }
+    }
   });
+  if (!result) {
+    throw Object.assign(new Error('The reply was interrupted. Please try again.'), { status: 0 });
+  }
+  return result;
 }

@@ -77,6 +77,62 @@ describe('chat routes', () => {
     expect(failed.body.error).toMatch(/unavailable/);
   });
 
+  async function stream(path, body) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+    const type = response.headers.get('content-type') || '';
+    const text = await response.text();
+    if (!type.includes('text/event-stream')) {
+      return { status: response.status, type, body: JSON.parse(text), events: [] };
+    }
+    const events = text.trim().split('\n\n').filter(Boolean).map((chunk) => {
+      const [eventLine, dataLine] = chunk.split('\n');
+      return { event: eventLine.replace('event: ', ''), data: JSON.parse(dataLine.replace('data: ', '')) };
+    });
+    return { status: response.status, type, events };
+  }
+
+  test('streams deltas then the saved turn', async () => {
+    const { body } = await call('POST', '/api/chat/conversations', {});
+    client.queue(FakeAnthropic.reply('Play safe until your first item.'));
+
+    const result = await stream(`/api/chat/conversations/${body.conversation.id}/messages`, { content: 'early game?' });
+
+    expect(result.status).toBe(200);
+    expect(result.type).toMatch('text/event-stream');
+    const deltas = result.events.filter((e) => e.event === 'delta').map((e) => e.data.text);
+    expect(deltas.length).toBeGreaterThan(1);
+    expect(deltas.join('')).toBe('Play safe until your first item.');
+    const done = result.events[result.events.length - 1];
+    expect(done.event).toBe('done');
+    expect(done.data.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
+  });
+
+  test('errors before streaming starts keep their status code', async () => {
+    const { body } = await call('POST', '/api/chat/conversations', {});
+    const empty = await stream(`/api/chat/conversations/${body.conversation.id}/messages`, { content: '' });
+    expect(empty.status).toBe(400);
+
+    client.queue(new Error('network down'));
+    const failed = await fetch(`${baseUrl}/api/chat/conversations/${body.conversation.id}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content: 'hi' })
+    });
+    expect(failed.status).toBe(503);
+  });
+
+  test('safeguard replies arrive as a single done event', async () => {
+    const { body } = await call('POST', '/api/chat/conversations', {});
+    const result = await stream(`/api/chat/conversations/${body.conversation.id}/messages`, { content: 'I want to die' });
+    expect(result.events.map((e) => e.event)).toEqual(['done']);
+    expect(result.events[0].data.safeguard.conversationEnded).toBe(true);
+    expect(client.requests).toHaveLength(0);
+  });
+
   test('requires auth', async () => {
     const response = await fetch(`${baseUrl}/api/chat/conversations`);
     expect(response.status).toBe(401);
