@@ -30,12 +30,13 @@ router.post('/query', crisisCheckMiddleware('query'), rateLimitMiddleware('query
 
 /**
  * POST /api/agent/analyze
- * Deep analysis endpoint for complex tasks
+ * Starts a deep analysis in the background and returns 202 with a taskId.
+ * Poll GET /api/agent/task/:taskId until status is 'completed' or 'failed'.
  */
 router.post('/analyze', rateLimitMiddleware('analyze'), usageLimitMiddleware(), async (req, res, next) => {
   try {
     const result = await agentController.handleAnalysis(req.body, req.user);
-    res.json(result);
+    res.status(202).json(result);
   } catch (error) {
     next(error);
   }
