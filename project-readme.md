@@ -28,15 +28,17 @@ Imagine never gaming alone again. An intelligent companion that:
 
 ## 🚀 Current Status: Phase 1 (MVP)
 
-**What's Live Now:**
-- ✅ Web-based match analysis for **League of Legends**
-- ✅ AI-powered performance breakdown with actionable insights
-- ✅ Conversational interface (chat with the AI about your games)
-- ✅ Multiple personality modes (Coach / Friend / Analyst)
-- ✅ Analyzes last 20 ranked matches from any summoner
-- ✅ Real-time progress tracking during analysis
+**In development.** The backend server, agent orchestrator, and Riot Games / Claude API clients are scaffolded; the frontend and overlay are not built yet.
 
-**Try it:** [Live Demo](https://yourdomain.com) | [Watch Demo Video](https://youtube.com/your-demo)
+**Phase 1 goals:**
+- ⏳ Web-based match analysis for **League of Legends**
+- ⏳ AI-powered performance breakdown with actionable insights
+- ⏳ Conversational interface (chat with the AI about your games)
+- ⏳ Multiple personality modes (Coach / Friend / Analyst)
+- ⏳ Analyzes last 20 ranked matches from any summoner
+- ⏳ Real-time progress tracking during analysis
+
+See [docs/phase1-responsible-mvp.md](docs/phase1-responsible-mvp.md) for the Phase 1 design and roadmap.
 
 ---
 
