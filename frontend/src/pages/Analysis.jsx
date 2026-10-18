@@ -52,7 +52,8 @@ export default function Analysis({ pollMs }) {
   };
 
   if (task && task.status === 'completed') {
-    return <AnalysisReport summary={task.result && task.result.summary} onRunAgain={reset} />;
+    const result = task.result || {};
+    return <AnalysisReport summary={result.summary} report={result.report} onRunAgain={reset} />;
   }
 
   if (task && task.status === 'running') {

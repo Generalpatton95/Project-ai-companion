@@ -1,6 +1,7 @@
 const { ToolRegistry } = require('../tools');
 const { StateManager } = require('./state-manager');
 const { ClaudeProvider } = require('../integrations/claude');
+const { reportFormat } = require('./report-schemas');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -100,12 +101,16 @@ class AgentOrchestrator {
   async runAgentLoop(taskId, task, state, signal) {
     const messages = this.buildInitialMessages(task);
     const tools = this.toolRegistry.getToolSchemas();
+    // The same report schema on every call: Claude can call tools along the
+    // way, and its final answer comes back as JSON matching the schema
+    const outputFormat = reportFormat(task.type);
+    const options = { signal, outputFormat };
     
     for (let i = 0; i < this.maxIterations; i++) {
       this.throwIfAborted(signal);
       logger.debug('Agent iteration', { taskId, iteration: i + 1 });
       
-      const response = await this.llm.complete(messages, tools, { signal });
+      const response = await this.llm.complete(messages, tools, options);
       
       messages.push({
         role: 'assistant',
@@ -118,7 +123,7 @@ class AgentOrchestrator {
       });
       
       if (response.stopReason === 'end_turn' || !response.toolCalls?.length) {
-        return this.extractFinalAnswer(response.content);
+        return this.finishAnswer(response, task.type, outputFormat);
       }
       
       this.throwIfAborted(signal);
@@ -130,13 +135,13 @@ class AgentOrchestrator {
       });
       
       if (this.shouldStopIteration(toolResults)) {
-        const finalResponse = await this.llm.complete(messages, tools, { signal });
-        return this.extractFinalAnswer(finalResponse.content);
+        const finalResponse = await this.llm.complete(messages, tools, options);
+        return this.finishAnswer(finalResponse, task.type, outputFormat);
       }
     }
     
     logger.warn('Max iterations reached', { taskId });
-    const summary = await this.generateSummary(messages, tools, signal);
+    const summary = await this.generateSummary(messages, tools, options, task.type);
     return summary;
   }
 
@@ -205,24 +210,20 @@ How to write about a player's performance:
 - Treat losses and mistakes as information to learn from.
 - Keep growth opportunities to two or three, so the player can act on them next game.
 
-Accuracy: base every claim about the player on data you actually retrieved. If a tool fails or data is missing, say so plainly, then give general advice clearly labeled as general. Never invent statistics.
+Accuracy: base every claim about the player on data you actually retrieved. If a tool fails or data is missing, say so in data_note and keep the advice general; use null for any current or goal value you don't have. Never invent statistics.
 
-Format: the report is shown as plain text, so don't use Markdown (no #, **, or tables). Put short section labels on their own line and use "- " for list items. Keep it short enough to read on a phone.`;
+Format: your final answer is JSON matching the response schema. Write every text field as plain sentences, without Markdown, and keep the whole report short enough to read on a phone.`;
 
     const taskPrompts = {
       match_analysis: `
 
-Your current task is to analyze the player's recent matches. Organize the report as:
-Your strengths
-Growth opportunities (two or three, each with a concrete next step)
-Progress (only if the data shows change over time)
-Then close with one encouraging line that invites them to ask follow-up questions in chat.`,
+Your current task is to analyze the player's recent matches. In the report, fill in strengths first, then two or three growth_opportunities, each with a concrete next_step. Include progress entries only where the data shows change over time; otherwise leave progress empty.`,
       meta_research: `
 
-Your current task is to research the current meta and give insights on strategies and champion picks, tailored to the player's role and rank when they're given. There's no individual performance to assess here. Say which patch or time period your information reflects, since the meta changes often.`,
+Your current task is to research the current meta and give insights on strategies and champion picks, tailored to the player's role and rank when they're given. There's no individual performance to assess here. Use data_note to say which patch or time period your information reflects, since the meta changes often.`,
       strategy_planning: `
 
-Your current task is to create a personalized improvement plan. Start with the strengths the player can build on, then two or three focus areas, each with something concrete to practice over the next week and a goal measured against their own current level.`
+Your current task is to create a personalized improvement plan. In the report, start with the strengths the player can build on, then two or three growth_opportunities as focus areas: each next_step is something concrete to practice over the next week, and each goal is measured against their own current level.`
     };
 
     return basePrompt + (taskPrompts[taskType] || '');
@@ -268,18 +269,30 @@ Your current task is to create a personalized improvement plan. Start with the s
     }));
   }
 
-  extractFinalAnswer(content) {
-    if (Array.isArray(content)) {
-      const textBlocks = content.filter(block => block.type === 'text');
-      return {
-        summary: textBlocks.map(b => b.text).join('\n'),
-        data: null
-      };
+  /**
+   * Turn Claude's final answer into the task result: { summary, report, kind }.
+   * `report` is the parsed JSON report, or null if there was no schema or the
+   * answer didn't parse (a refusal or a max_tokens cut-off can break it).
+   */
+  finishAnswer(response, taskType, outputFormat) {
+    const content = response.content;
+    const text = Array.isArray(content)
+      ? content.filter(block => block.type === 'text').map(b => b.text).join('\n')
+      : String(content || '');
+
+    if (outputFormat) {
+      try {
+        const report = JSON.parse(text);
+        return { summary: report.headline, report, kind: taskType };
+      } catch (error) {
+        logger.warn('Analysis report was not valid JSON', { stopReason: response.stopReason });
+      }
     }
-    
+
     return {
-      summary: content,
-      data: null
+      summary: text.trim() || 'The analysis could not be completed. Please try again.',
+      report: null,
+      kind: taskType
     };
   }
 
@@ -299,14 +312,14 @@ Your current task is to create a personalized improvement plan. Start with the s
     }
   }
 
-  async generateSummary(messages, tools, signal) {
+  async generateSummary(messages, tools, options, taskType) {
     messages.push({
       role: 'user',
       content: 'Please provide a summary of your analysis based on the information gathered so far.'
     });
     
-    const response = await this.llm.complete(messages, tools, { signal });
-    return this.extractFinalAnswer(response.content);
+    const response = await this.llm.complete(messages, tools, options);
+    return this.finishAnswer(response, taskType, options.outputFormat);
   }
 
   async handleError(taskId, error) {

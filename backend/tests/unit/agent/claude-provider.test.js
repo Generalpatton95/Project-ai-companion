@@ -191,13 +191,12 @@ describe('analysis system prompt', () => {
     const prompt = orchestrator.getSystemPrompt(type);
     expect(prompt).toMatch(/Lead with what the player is doing well/);
     expect(prompt).toMatch(/Never invent statistics/);
-    expect(prompt).toMatch(/don't use Markdown/);
+    expect(prompt).toMatch(/without Markdown/);
     expect(prompt).not.toMatch(/step by step/i);
   });
 
-  test('match analysis puts strengths before growth opportunities', () => {
+  test('match analysis fills strengths before growth opportunities', () => {
     const prompt = orchestrator.getSystemPrompt('match_analysis');
-    expect(prompt.indexOf('Your strengths')).toBeGreaterThan(-1);
-    expect(prompt.indexOf('Your strengths')).toBeLessThan(prompt.indexOf('Growth opportunities (two or three'));
+    expect(prompt).toMatch(/fill in strengths first, then two or three growth_opportunities/);
   });
 });
