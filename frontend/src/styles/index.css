@@ -1,0 +1,138 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-3);
+  display: grid;
+  gap: var(--space-3);
+}
+
+h1,
+h2 {
+  margin-top: 0;
+  line-height: 1.25;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+}
+
+.muted,
+.fine-print {
+  color: var(--color-muted);
+}
+
+.fine-print {
+  font-size: 0.875rem;
+  margin-bottom: 0;
+}
+
+.error {
+  color: var(--color-error);
+}
+
+.checklist {
+  padding-left: 0;
+  list-style: none;
+}
+
+.checklist li::before {
+  content: '✓ ';
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.button {
+  font: inherit;
+  border-radius: 999px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.button.primary {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+.button.ghost {
+  background: transparent;
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.button:focus-visible,
+.mood-option:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.mood-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.mood-option {
+  font: inherit;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.mood-option[aria-pressed='true'] {
+  border-color: var(--color-primary);
+  background: var(--color-accent-bg);
+}
+
+.mood-option:disabled {
+  cursor: default;
+}
+
+.mood-emoji {
+  font-size: 2rem;
+}
+
+.support {
+  background: var(--color-accent-bg);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.support ul {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.reminder {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+}
