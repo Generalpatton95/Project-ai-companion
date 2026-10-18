@@ -9,7 +9,8 @@ const logger = require('../utils/logger');
 
 const RATE_LIMITS = {
   query: { max: 50, window: 900000 },     // 50 per 15 min
-  analyze: { max: 10, window: 900000 }    // 10 per 15 min
+  analyze: { max: 10, window: 900000 },   // 10 per 15 min
+  auth: { max: 10, window: 900000 }       // 10 per 15 min, per IP
 };
 
 function rateLimitMiddleware(type = 'query') {
@@ -51,4 +52,36 @@ function rateLimitMiddleware(type = 'query') {
   };
 }
 
-module.exports = { rateLimitMiddleware };
+/**
+ * Rate limit by client IP, for endpoints used before a user is known
+ * (login, registration). Set app 'trust proxy' when behind a load balancer.
+ */
+function ipRateLimitMiddleware(type = 'auth') {
+  return async (req, res, next) => {
+    try {
+      const limit = RATE_LIMITS[type] || RATE_LIMITS.auth;
+      const key = `ratelimit:${type}:ip:${req.ip}`;
+
+      const count = await redis.incr(key);
+      if (count === 1) {
+        await redis.expire(key, Math.ceil(limit.window / 1000));
+      }
+
+      if (count > limit.max) {
+        logger.warn('IP rate limit exceeded', { type });
+        return res.status(429).json({
+          error: 'Too many attempts. Please wait a few minutes and try again.',
+          retryAfter: Math.ceil(limit.window / 1000)
+        });
+      }
+
+      next();
+
+    } catch (error) {
+      logger.error('IP rate limit middleware error', { error: error.message });
+      next(); // Don't block on rate limit errors
+    }
+  };
+}
+
+module.exports = { rateLimitMiddleware, ipRateLimitMiddleware };
