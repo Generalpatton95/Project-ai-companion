@@ -5,9 +5,9 @@ const logger = require('../utils/logger');
 
 class AgentOrchestrator {
   constructor(options = {}) {
-    this.llm = new ClaudeProvider();
-    this.toolRegistry = new ToolRegistry();
-    this.stateManager = new StateManager();
+    this.llm = options.llm || new ClaudeProvider();
+    this.toolRegistry = options.toolRegistry || new ToolRegistry();
+    this.stateManager = options.stateManager || new StateManager();
     this.maxIterations = options.maxIterations || 10;
     this.timeout = options.timeout || 30000;
   }
@@ -91,13 +91,13 @@ class AgentOrchestrator {
       });
       
       if (this.shouldStopIteration(toolResults)) {
-        const finalResponse = await this.llm.complete(messages);
+        const finalResponse = await this.llm.complete(messages, tools);
         return this.extractFinalAnswer(finalResponse.content);
       }
     }
     
     logger.warn('Max iterations reached', { taskId });
-    const summary = await this.generateSummary(messages);
+    const summary = await this.generateSummary(messages, tools);
     return summary;
   }
 
@@ -202,23 +202,18 @@ Always think step by step and use the available tools to gather information befo
     return prompt;
   }
 
+  /**
+   * One tool_result block per tool_use, all in a single user message
+   */
   formatToolResults(toolResults) {
-    let formatted = 'Tool Execution Results:\n\n';
-    
-    toolResults.forEach(result => {
-      formatted += `Tool: ${result.toolName}\n`;
-      formatted += `Status: ${result.success ? 'Success' : 'Failed'}\n`;
-      
-      if (result.success) {
-        formatted += `Data: ${JSON.stringify(result.data, null, 2)}\n`;
-      } else {
-        formatted += `Error: ${result.error}\n`;
-      }
-      
-      formatted += '\n';
-    });
-    
-    return formatted;
+    return toolResults.map(result => ({
+      type: 'tool_result',
+      tool_use_id: result.toolCallId,
+      content: result.success
+        ? JSON.stringify(result.data ?? null, null, 2)
+        : `Error: ${result.error}`,
+      ...(!result.success && { is_error: true })
+    }));
   }
 
   extractFinalAnswer(content) {
@@ -246,13 +241,13 @@ Always think step by step and use the available tools to gather information befo
     return false;
   }
 
-  async generateSummary(messages) {
+  async generateSummary(messages, tools) {
     messages.push({
       role: 'user',
       content: 'Please provide a summary of your analysis based on the information gathered so far.'
     });
     
-    const response = await this.llm.complete(messages);
+    const response = await this.llm.complete(messages, tools);
     return this.extractFinalAnswer(response.content);
   }
 

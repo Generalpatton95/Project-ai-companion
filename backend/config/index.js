@@ -31,8 +31,9 @@ module.exports = {
 
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY,
-    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
-    maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS) || 4000,
+    model: process.env.CLAUDE_MODEL || 'claude-opus-5-5',
+    maxTokens: parseInt(process.env.CLAUDE_MAX_TOKENS) || 16000,
+    effort: process.env.CLAUDE_EFFORT || 'high',
     chatModel: process.env.CHAT_MODEL || 'claude-opus-5-5',
     chatEffort: process.env.CHAT_EFFORT || 'medium'
   },
