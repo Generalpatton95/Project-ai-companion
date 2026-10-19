@@ -5,12 +5,23 @@
 
 const { AgentOrchestrator } = require('../agent/orchestrator');
 const { StateManager } = require('../agent/state-manager');
+const config = require('../config');
 const logger = require('../utils/logger');
+const { ValidationError, NotFoundError } = require('../utils/errors');
+
+// A task still 'running' this long after it started was cut off (e.g. by a
+// server restart) and will never finish
+const STALE_GRACE_MS = 60000;
 
 class AgentController {
-  constructor() {
-    this.orchestrator = new AgentOrchestrator();
-    this.stateManager = new StateManager();
+  constructor({
+    orchestrator = new AgentOrchestrator(),
+    stateManager = new StateManager(),
+    taskTimeout = config.agent.timeout
+  } = {}) {
+    this.orchestrator = orchestrator;
+    this.stateManager = stateManager;
+    this.taskTimeout = taskTimeout;
   }
 
   /**
@@ -36,13 +47,14 @@ class AgentController {
   }
 
   /**
-   * Handle complex analysis
+   * Start a complex analysis in the background. Poll getTaskStatus with the
+   * returned taskId for progress and the result.
    */
   async handleAnalysis(body, user) {
     const { task_type, parameters, context = {} } = body;
 
     if (!task_type) {
-      throw new Error('task_type is required');
+      throw new ValidationError('task_type is required');
     }
 
     logger.info('Handling analysis', { userId: user.id, taskType: task_type });
@@ -57,36 +69,51 @@ class AgentController {
       }
     };
 
-    const result = await this.orchestrator.executeTask(task);
+    const { taskId } = await this.orchestrator.startTask(task);
 
-    return result;
+    return {
+      taskId,
+      status: 'running',
+      statusUrl: `/api/agent/task/${taskId}`
+    };
   }
 
   /**
    * Get task status
    */
   async getTaskStatus(taskId, user) {
+    let state;
     try {
-      const state = await this.stateManager.getTask(taskId);
-
-      // Verify user owns this task
-      if (state.context.userId !== user.id) {
-        throw new Error('Unauthorized');
-      }
-
-      return {
-        taskId,
-        status: state.status,
-        iterations: state.iterations,
-        result: state.result,
-        error: state.error,
-        createdAt: state.createdAt,
-        updatedAt: state.updatedAt
-      };
+      state = await this.stateManager.getTask(taskId);
     } catch (error) {
+      if (error.message.startsWith('Task not found')) {
+        throw new NotFoundError('Task not found');
+      }
       logger.error('Failed to get task status', { taskId, error: error.message });
       throw error;
     }
+
+    // Someone else's task looks the same as a missing one
+    if (!state.context || state.context.userId !== user.id) {
+      throw new NotFoundError('Task not found');
+    }
+
+    let { status, error } = state;
+    const age = Date.now() - new Date(state.createdAt).getTime();
+    if (status === 'running' && age > this.taskTimeout + STALE_GRACE_MS) {
+      status = 'failed';
+      error = 'The analysis was interrupted. Please try again.';
+    }
+
+    return {
+      taskId,
+      status,
+      iterations: state.iterations,
+      result: state.result,
+      error,
+      createdAt: state.createdAt,
+      updatedAt: state.updatedAt
+    };
   }
 }
 

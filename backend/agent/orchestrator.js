@@ -13,15 +13,39 @@ class AgentOrchestrator {
     this.timeout = options.timeout || config.agent.timeout;
   }
 
+  /**
+   * Run a task to completion and return its result.
+   */
   async executeTask(task) {
+    const { taskId, state } = await this.createTask(task);
+    return this.runTask(taskId, task, state);
+  }
+
+  /**
+   * Record a task and start it in the background. Resolves once the task can
+   * be polled (GET /api/agent/task/:taskId); `done` settles when it finishes.
+   */
+  async startTask(task) {
+    const { taskId, state } = await this.createTask(task);
+    const done = this.runTask(taskId, task, state).catch((error) => {
+      // runTask records its own failures; this only catches errors while
+      // recording them (e.g. Redis down), which must not crash the process
+      logger.error('Background agent task crashed', { taskId, error: error.message });
+    });
+    return { taskId, done };
+  }
+
+  async createTask(task) {
     const taskId = this.generateTaskId();
+    logger.info('Starting agent task', { taskId, type: task.type });
+    const state = await this.stateManager.createTask(taskId, task);
+    return { taskId, state };
+  }
+
+  async runTask(taskId, task, state) {
     const startTime = Date.now();
     
     try {
-      logger.info('Starting agent task', { taskId, type: task.type });
-      
-      const state = await this.stateManager.createTask(taskId, task);
-      
       // On timeout, abort the in-flight Claude request and stop the loop so a
       // timed-out task doesn't keep spending tokens in the background
       const controller = new AbortController();
