@@ -28,7 +28,7 @@ class AgentController {
    * Handle simple query
    */
   async handleQuery(body, user) {
-    const { query, context = {} } = body;
+    const { query } = body;
 
     if (!query) {
       throw new Error('Query is required');

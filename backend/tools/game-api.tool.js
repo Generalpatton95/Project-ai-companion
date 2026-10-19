@@ -76,14 +76,16 @@ class GameAPITool extends BaseTool {
       case 'summoner':
         return await this.riotClient.getSummoner(playerId, region);
         
-      case 'match_history':
+      case 'match_history': {
         const count = extraParams.count || 20;
         return await this.riotClient.getMatchHistory(playerId, region, count);
+      }
         
-      case 'match_details':
+      case 'match_details': {
         const matchId = extraParams.match_id;
         if (!matchId) throw new Error('match_id required for match_details');
         return await this.riotClient.getMatchDetails(matchId, region);
+      }
         
       case 'ranked_stats':
         return await this.riotClient.getRankedStats(playerId, region);

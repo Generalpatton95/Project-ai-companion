@@ -94,12 +94,20 @@ describe('background analysis', () => {
   });
 
   test("another user's task and a missing task both look like 404", async () => {
-    const { client, controller } = setup();
-    client.queue(gate().reply);
+    const { client, orchestrator, controller } = setup();
+    const { reply, release } = gate();
+    client.queue(reply);
+    const startTask = jest.spyOn(orchestrator, 'startTask');
     const { taskId } = await controller.handleAnalysis({ task_type: 'match_analysis' }, user);
 
-    await expect(controller.getTaskStatus(taskId, { id: 'someone-else' })).rejects.toMatchObject({ statusCode: 404 });
-    await expect(controller.getTaskStatus('task_missing', user)).rejects.toMatchObject({ statusCode: 404 });
+    try {
+      await expect(controller.getTaskStatus(taskId, { id: 'someone-else' })).rejects.toMatchObject({ statusCode: 404 });
+      await expect(controller.getTaskStatus('task_missing', user)).rejects.toMatchObject({ statusCode: 404 });
+    } finally {
+      // Let the task finish, even if an assertion failed, so it isn't left running
+      release(FakeAnthropic.reply('Done.'));
+      await (await startTask.mock.results[0].value).done;
+    }
   });
 
   test('a task left running past its time limit is reported as interrupted', async () => {

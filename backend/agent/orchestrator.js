@@ -56,6 +56,8 @@ class AgentOrchestrator {
           controller.abort();
           reject(new Error('Task timeout'));
         }, this.timeout);
+        // A pending timeout alone shouldn't keep the process (or Jest) alive
+        timer.unref();
       });
       
       let result;
