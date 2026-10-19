@@ -17,7 +17,7 @@ describeWithDb('UserRepository (Postgres)', () => {
     users = new UserRepository({ pool });
   });
 
-  beforeEach(() => pool.query('TRUNCATE users'));
+  beforeEach(() => pool.query('TRUNCATE users CASCADE'));
 
   afterAll(() => pool.end());
 

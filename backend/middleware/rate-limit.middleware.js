@@ -10,6 +10,7 @@ const logger = require('../utils/logger');
 const RATE_LIMITS = {
   query: { max: 50, window: 900000 },     // 50 per 15 min
   analyze: { max: 10, window: 900000 },   // 10 per 15 min
+  chat: { max: 30, window: 900000 },      // 30 messages per 15 min
   auth: { max: 10, window: 900000 }       // 10 per 15 min, per IP
 };
 

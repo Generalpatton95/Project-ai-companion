@@ -10,6 +10,13 @@ vi.mock('../../services/auth.service.js', () => ({
   logout: vi.fn()
 }));
 
+vi.mock('../../services/chat.service.js', () => ({
+  listConversations: vi.fn(() => Promise.resolve([]))
+}));
+vi.mock('../../services/safeguards.service.js', () => ({
+  getMoodSummary: vi.fn(() => Promise.resolve({ latest: null }))
+}));
+
 const user = { id: 'u1', email: 'player@example.com', displayName: 'Player', tier: 'free' };
 
 describe('App auth gate', () => {
@@ -28,6 +35,18 @@ describe('App auth gate', () => {
     render(<App />);
     expect(await screen.findByText('Player')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Welcome to Your Gaming Companion' })).toBeInTheDocument();
+  });
+
+  it('switches between the session and chat tabs', async () => {
+    authService.fetchCurrentUser.mockResolvedValue(user);
+    render(<App />);
+
+    await screen.findByText('Player');
+    expect(screen.getByRole('heading', { name: 'Chat with your companion', hidden: true })).not.toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Chat' }));
+    expect(screen.getByRole('heading', { name: 'Chat with your companion' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Chat' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('signs in, then signs out', async () => {

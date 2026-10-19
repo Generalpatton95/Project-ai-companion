@@ -1,9 +1,17 @@
+import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import Home from './pages/Home.jsx';
+import Chat from './pages/Chat.jsx';
 import Login from './pages/Login.jsx';
+
+const TABS = [
+  { id: 'session', label: 'Session' },
+  { id: 'chat', label: 'Chat' }
+];
 
 function Shell() {
   const { user, status, logout, retry } = useAuth();
+  const [tab, setTab] = useState('session');
 
   if (status === 'loading') {
     return <p className="muted" role="status">Loading…</p>;
@@ -34,7 +42,26 @@ function Shell() {
           Sign out
         </button>
       </header>
-      <Home />
+      <nav className="tabs" aria-label="Main">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className="tab"
+            aria-current={tab === t.id ? 'page' : undefined}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+      {/* Both stay mounted so the play session keeps sending heartbeats while chatting */}
+      <div hidden={tab !== 'session'}>
+        <Home />
+      </div>
+      <div hidden={tab !== 'chat'}>
+        <Chat />
+      </div>
     </>
   );
 }
