@@ -8,9 +8,15 @@ class FakeAnthropic {
     this.responses = [];
     this.beta = {
       messages: {
-        create: async (params) => {
+        create: async (params, options = {}) => {
           this.requests.push(JSON.parse(JSON.stringify(params)));
-          return this.next();
+          this.requestOptions.push(options);
+          const next = this.next();
+          if (next instanceof Error) {
+            throw next;
+          }
+          // A queued function controls when (and whether) the reply arrives
+          return typeof next === 'function' ? next(options) : next;
         },
         stream: (params, options = {}) => {
           this.requests.push(JSON.parse(JSON.stringify(params)));

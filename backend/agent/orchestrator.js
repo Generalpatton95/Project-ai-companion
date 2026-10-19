@@ -1,15 +1,16 @@
 const { ToolRegistry } = require('../tools');
 const { StateManager } = require('./state-manager');
 const { ClaudeProvider } = require('../integrations/claude');
+const config = require('../config');
 const logger = require('../utils/logger');
 
 class AgentOrchestrator {
   constructor(options = {}) {
-    this.llm = new ClaudeProvider();
-    this.toolRegistry = new ToolRegistry();
-    this.stateManager = new StateManager();
-    this.maxIterations = options.maxIterations || 10;
-    this.timeout = options.timeout || 30000;
+    this.llm = options.llm || new ClaudeProvider();
+    this.toolRegistry = options.toolRegistry || new ToolRegistry();
+    this.stateManager = options.stateManager || new StateManager();
+    this.maxIterations = options.maxIterations || config.agent.maxIterations;
+    this.timeout = options.timeout || config.agent.timeout;
   }
 
   async executeTask(task) {
@@ -21,14 +22,26 @@ class AgentOrchestrator {
       
       const state = await this.stateManager.createTask(taskId, task);
       
+      // On timeout, abort the in-flight Claude request and stop the loop so a
+      // timed-out task doesn't keep spending tokens in the background
+      const controller = new AbortController();
+      let timer;
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Task timeout')), this.timeout);
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error('Task timeout'));
+        }, this.timeout);
       });
       
-      const result = await Promise.race([
-        this.runAgentLoop(taskId, task, state),
-        timeoutPromise
-      ]);
+      let result;
+      try {
+        result = await Promise.race([
+          this.runAgentLoop(taskId, task, state, controller.signal),
+          timeoutPromise
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
       
       await this.stateManager.completeTask(taskId, result);
       
@@ -60,14 +73,15 @@ class AgentOrchestrator {
     }
   }
 
-  async runAgentLoop(taskId, task, state) {
+  async runAgentLoop(taskId, task, state, signal) {
     const messages = this.buildInitialMessages(task);
     const tools = this.toolRegistry.getToolSchemas();
     
     for (let i = 0; i < this.maxIterations; i++) {
+      this.throwIfAborted(signal);
       logger.debug('Agent iteration', { taskId, iteration: i + 1 });
       
-      const response = await this.llm.complete(messages, tools);
+      const response = await this.llm.complete(messages, tools, { signal });
       
       messages.push({
         role: 'assistant',
@@ -83,6 +97,7 @@ class AgentOrchestrator {
         return this.extractFinalAnswer(response.content);
       }
       
+      this.throwIfAborted(signal);
       const toolResults = await this.executeTools(taskId, response.toolCalls);
       
       messages.push({
@@ -91,13 +106,13 @@ class AgentOrchestrator {
       });
       
       if (this.shouldStopIteration(toolResults)) {
-        const finalResponse = await this.llm.complete(messages);
+        const finalResponse = await this.llm.complete(messages, tools, { signal });
         return this.extractFinalAnswer(finalResponse.content);
       }
     }
     
     logger.warn('Max iterations reached', { taskId });
-    const summary = await this.generateSummary(messages);
+    const summary = await this.generateSummary(messages, tools, signal);
     return summary;
   }
 
@@ -202,23 +217,18 @@ Always think step by step and use the available tools to gather information befo
     return prompt;
   }
 
+  /**
+   * One tool_result block per tool_use, all in a single user message
+   */
   formatToolResults(toolResults) {
-    let formatted = 'Tool Execution Results:\n\n';
-    
-    toolResults.forEach(result => {
-      formatted += `Tool: ${result.toolName}\n`;
-      formatted += `Status: ${result.success ? 'Success' : 'Failed'}\n`;
-      
-      if (result.success) {
-        formatted += `Data: ${JSON.stringify(result.data, null, 2)}\n`;
-      } else {
-        formatted += `Error: ${result.error}\n`;
-      }
-      
-      formatted += '\n';
-    });
-    
-    return formatted;
+    return toolResults.map(result => ({
+      type: 'tool_result',
+      tool_use_id: result.toolCallId,
+      content: result.success
+        ? JSON.stringify(result.data ?? null, null, 2)
+        : `Error: ${result.error}`,
+      ...(!result.success && { is_error: true })
+    }));
   }
 
   extractFinalAnswer(content) {
@@ -246,13 +256,19 @@ Always think step by step and use the available tools to gather information befo
     return false;
   }
 
-  async generateSummary(messages) {
+  throwIfAborted(signal) {
+    if (signal && signal.aborted) {
+      throw new Error('Task timeout');
+    }
+  }
+
+  async generateSummary(messages, tools, signal) {
     messages.push({
       role: 'user',
       content: 'Please provide a summary of your analysis based on the information gathered so far.'
     });
     
-    const response = await this.llm.complete(messages);
+    const response = await this.llm.complete(messages, tools, { signal });
     return this.extractFinalAnswer(response.content);
   }
 
