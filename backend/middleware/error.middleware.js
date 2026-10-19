@@ -13,7 +13,10 @@ function errorMiddleware(err, req, res, next) {
   let message = 'Internal server error';
 
   // Handle specific errors
-  if (err.name === 'ValidationError') {
+  if (err.statusCode) {
+    statusCode = err.statusCode;
+    message = err.message;
+  } else if (err.name === 'ValidationError') {
     statusCode = 400;
     message = err.message;
   } else if (err.name === 'UnauthorizedError') {
