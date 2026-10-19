@@ -77,6 +77,7 @@ No change.
 | R4.3 (round 1 widening) | The scan also covers `console.*`, `logger[...]` and aliases, and flags a whole error passed as a value (`error`, `err`, `${error}`, `String(error)`), `.detail` and `.response`. The `.length` exception only applies to `query` and `content`. Each new rule has a fixture test |
 | R2.4 | Unit: chat limiter over the limit returns 429 + `resources`; query/analyze 429 has none. Vitest: the chat page shows resources on that 429 |
 | R4.6 | Unit: a task failing with a plain `Error('secret detail')` stores and returns the generic message; an app error keeps its own |
+| Real Redis (round 2) | Integration test, run in CI with a Redis service and skipped without `REDIS_URL`: the count script counts, sets the expiry once without resetting it, and the real ioredis client gives 503 within 1.5s when Redis is unreachable |
 | Route wiring (round 1) | Unit: the auth and agent routes use the fail-closed limiters and `usageLimitMiddleware` by default (`isolateModules`, as in the chat wiring test) |
 | R4.3 | Unit: a source scan of `backend/**/*.js` (excluding `node_modules`, `tests`) fails on a logger call containing `.message`, `.stack`, `req.body`, or a value of `query`, `content`, `email`, `password` |
 | R5.1 | Route test: `POST /api/agent/query {}` returns 400 |

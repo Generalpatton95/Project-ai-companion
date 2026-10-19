@@ -62,6 +62,12 @@ Each task is small enough to finish and test in one sitting. Check it off only w
 - [ ] 21. Route wiring tests for auth (`ipRateLimitMiddleware('auth')`) and agent (`query`, `analyze`, `usageLimitMiddleware`). _Covers R1.1, R2.1, R3.1._
 - [ ] 22. Nits: add the criterion ID to the Chat test "shows no support resources for an error without them"; add the missing newline at the end of `game-api.tool.js`.
 
+## Review round 2 (2026-10-19)
+- [ ] 23. Real-Redis integration test for the count script and fail-fast client; put the Redis service and `REDIS_URL` back in `.github/workflows/test.yml`; the test skips without `REDIS_URL`. _Covers R1.1, R1.2, R2.1._
+- [ ] 24. `task_type` is checked against the known task types before it's logged or used (unknown → 400 `ValidationError`), so only fixed values reach the logs. _Covers R4.1, R5.1._
+- [ ] 25. Scanner: whole-error rule also covers `e`, `ex`, `reason`; request-text rule adds `summonerName`, `puuid`, `player_id`, `playerId`, `summonerId`, `matchId`, `task_type`; property rule for `req.query`, `req.params`, `req.headers`, `req.url`, `req.originalUrl`. Fixture test for each. _Covers R4.3._
+- [ ] 26. Limiter treats a count that isn't an integer as unavailable (503). _Covers R1.1, R2.1._
+
 ## Verification
 - [ ] Every acceptance criterion (R1.1–R8.1) maps to a passing test or a recorded manual check.
 - [ ] Backend `npm run lint` and `npm test` pass, and Jest exits on its own. Frontend `npm test` and `npm run build` pass. CI passes, including the Postgres suites.
