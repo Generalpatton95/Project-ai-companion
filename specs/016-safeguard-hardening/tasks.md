@@ -54,7 +54,7 @@ Each task is small enough to finish and test in one sitting. Check it off only w
 - [ ] 15. Failed analyses show the generic message (`orchestrator.js:90-97`). _Covers R4.6._
   - [ ] 15.1 Write a failing test: a plain `Error` gives the generic message in the stored state and in `getTaskStatus`; an app error keeps its message.
 - [ ] 16. Widen the log scan (rules listed in the design); narrow `.length` to `query`/`content`; fixture test for each new rule. _Covers R4.3._
-- [ ] 17. Atomic counting in both limiters (`MULTI` `INCR` + `EXPIRE NX`); rename the option to `crisisResources`; the chat 429 carries `resources`. _Covers R1.1, R2.1, R2.4._
+- [ ] 17. Atomic counting in both limiters (one Lua script: `INCR`, then set the expiry if the key has none); rename the option to `crisisResources`; the chat 429 carries `resources`. _Covers R1.1, R2.1, R2.4._
   - [ ] 17.1 Write failing tests: the expiry is set in the same call as the count; two simultaneous first requests count 2; chat 429 has `resources`, query 429 doesn't.
 - [ ] 18. Chat page shows resources on the 429 (Vitest). _Covers R2.4 (UI)._
 - [ ] 19. Redis `commandTimeout: 1500`, `connectTimeout: 2000`; remove the duplicate success log. _Covers R1.2, R6.1._
