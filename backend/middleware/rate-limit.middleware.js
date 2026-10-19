@@ -4,7 +4,6 @@
 // ============================================================================
 
 const redis = require('../config/redis');
-const config = require('../config');
 const logger = require('../utils/logger');
 
 const RATE_LIMITS = {

@@ -94,12 +94,24 @@ describe('background analysis', () => {
   });
 
   test("another user's task and a missing task both look like 404", async () => {
-    const { client, controller } = setup();
-    client.queue(gate().reply);
+    const { client, orchestrator, controller } = setup();
+    const { reply, release } = gate();
+    client.queue(reply);
+    let done;
+    const startTask = orchestrator.startTask.bind(orchestrator);
+    orchestrator.startTask = async (task) => {
+      const started = await startTask(task);
+      done = started.done;
+      return started;
+    };
     const { taskId } = await controller.handleAnalysis({ task_type: 'match_analysis' }, user);
 
     await expect(controller.getTaskStatus(taskId, { id: 'someone-else' })).rejects.toMatchObject({ statusCode: 404 });
     await expect(controller.getTaskStatus('task_missing', user)).rejects.toMatchObject({ statusCode: 404 });
+
+    // Let the task finish so its timeout timer doesn't keep Jest running
+    release(FakeAnthropic.reply('Done.'));
+    await done;
   });
 
   test('a task left running past its time limit is reported as interrupted', async () => {

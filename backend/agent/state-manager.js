@@ -1,5 +1,4 @@
 const redis = require('../config/redis');
-const logger = require('../utils/logger');
 
 class StateManager {
   constructor({ store } = {}) {
