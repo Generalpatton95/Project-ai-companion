@@ -91,7 +91,7 @@ describe('AgentOrchestrator tool loop', () => {
     expect(result.result.summary).toBe('You farm well; ward more.');
 
     const [first, second] = client.requests;
-    expect(first.system).toMatch(/expert gaming companion/);
+    expect(first.system).toMatch(/Lead with what the player is doing well/);
     expect(second.system).toBe(first.system);
     expect(second.tools).toEqual(first.tools);
     // Second request = first request's messages + assistant turn + tool results
@@ -181,5 +181,22 @@ describe('AgentOrchestrator timeout', () => {
     expect(result.status).toBe('completed');
     expect(clearSpy).toHaveBeenCalled();
     clearSpy.mockRestore();
+  });
+});
+
+describe('analysis system prompt', () => {
+  const orchestrator = new AgentOrchestrator({ llm: {}, toolRegistry: {}, stateManager: {} });
+
+  test.each(['match_analysis', 'strategy_planning', 'meta_research'])('%s keeps the progress-over-perfection framing', (type) => {
+    const prompt = orchestrator.getSystemPrompt(type);
+    expect(prompt).toMatch(/Lead with what the player is doing well/);
+    expect(prompt).toMatch(/Never invent statistics/);
+    expect(prompt).toMatch(/without Markdown/);
+    expect(prompt).not.toMatch(/step by step/i);
+  });
+
+  test('match analysis fills strengths before growth opportunities', () => {
+    const prompt = orchestrator.getSystemPrompt('match_analysis');
+    expect(prompt).toMatch(/fill in strengths first, then two or three growth_opportunities/);
   });
 });

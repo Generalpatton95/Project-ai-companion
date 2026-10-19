@@ -35,6 +35,9 @@ class ClaudeProvider {
    * invalidates the thinking blocks replayed from earlier turns.
    * Sampling parameters (temperature, top_p, top_k) are not sent; current
    * models reject them.
+   *
+   * options.outputFormat (an output_config.format, e.g. a json_schema) makes
+   * Claude's final text answer JSON matching the schema; tool calls still work.
    */
   async complete(messages, tools = null, options = {}) {
     try {
@@ -46,7 +49,10 @@ class ClaudeProvider {
         betas: ['server-side-fallback-2026-07-01'],
         fallbacks: 'default',
         thinking: { type: 'adaptive' },
-        output_config: { effort: this.effort },
+        output_config: {
+          effort: this.effort,
+          ...(options.outputFormat && { format: options.outputFormat })
+        },
         messages: conversation
       };
 

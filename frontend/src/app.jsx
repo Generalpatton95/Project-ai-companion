@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import Home from './pages/Home.jsx';
 import Chat from './pages/Chat.jsx';
+import Analysis from './pages/Analysis.jsx';
 import Login from './pages/Login.jsx';
 
 const TABS = [
   { id: 'session', label: 'Session' },
-  { id: 'chat', label: 'Chat' }
+  { id: 'chat', label: 'Chat' },
+  { id: 'analysis', label: 'Analysis' }
 ];
 
 function Shell() {
@@ -55,12 +57,16 @@ function Shell() {
           </button>
         ))}
       </nav>
-      {/* Both stay mounted so the play session keeps sending heartbeats while chatting */}
+      {/* All stay mounted so the play session keeps sending heartbeats and an
+          analysis keeps polling while another tab is open */}
       <div hidden={tab !== 'session'}>
         <Home />
       </div>
       <div hidden={tab !== 'chat'}>
         <Chat />
+      </div>
+      <div hidden={tab !== 'analysis'}>
+        <Analysis />
       </div>
     </>
   );
