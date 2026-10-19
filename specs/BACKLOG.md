@@ -24,8 +24,9 @@ Status: `—` not started · `Req` requirements drafted · `Design` · `Tasks` �
 | 012 | Tilt detection | Wk 7–8 | — | Safeguard 4 |
 | 013 | "I'm AI" reminders & human connection prompts | Wk 7–8 | — | Safeguards 3 & 5 |
 | 014 | Onboarding, settings, resources pages | Wk 7–8 | Unverified | Welcome screen in PR #3; `Settings.jsx` and `Profile.jsx` exist |
-| 015 | Deployment | Wk 11–12 | — | Neon (DB), Vercel (frontend), long-running backend host (Railway/Render/Fly); move rate limits to shared storage; `trust proxy`; secrets |
+| 015 | Deployment | Wk 11–12 | — | Neon (DB), Vercel (frontend), long-running backend host (Railway/Render/Fly); move rate limits to shared storage; `trust proxy`; secrets; rate-limit `/health` and the 404 handler (016 review) |
 | 016 | Safeguard hardening | Before public launch | Build | From the PR #9 review: fail-closed limits, no user content or IPs in logs, no error leaks. **Blocks release** |
+| 017 | Usage-limit concurrency | Before public launch | — | From the 016 review: simultaneous `/analyze` requests can pass the daily cap (check happens before the count is recorded); needs reserve-then-refund. Also Postgres `connectionTimeoutMillis` / `statement_timeout` |
 | R1 | Reconcile specs 001–015 with `main` | Next | — | Bring 001/002 from their branches up to date with the code; write specs for `Built, no spec` rows; check `Unverified` rows |
 
 Frontend work for each feature goes in the same spec as its backend work, so each spec covers the whole feature end to end.

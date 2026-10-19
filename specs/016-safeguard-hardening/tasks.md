@@ -49,6 +49,19 @@ Each task is small enough to finish and test in one sitting. Check it off only w
   - [ ] 13.1 Write failing tests: `undefined, 0, -5, '7', 500, 'abc'` give `20, 1, 1, 7, 20, 20`.
   - [ ] 13.2 Implement and use it in the `match_history` case.
 
+## Review round 1 (2026-10-19)
+- [ ] 14. Riot identifiers out of logs and errors: drop `summonerName`/`puuid` (error and debug) in `riot-games.js` and `player_id` in `game-api.tool.js:62`; Riot methods throw without the outside message. _Covers R4.1, R4.6._ **Blocker.**
+- [ ] 15. Failed analyses show the generic message (`orchestrator.js:90-97`). _Covers R4.6._
+  - [ ] 15.1 Write a failing test: a plain `Error` gives the generic message in the stored state and in `getTaskStatus`; an app error keeps its message.
+- [ ] 16. Widen the log scan (rules listed in the design); narrow `.length` to `query`/`content`; fixture test for each new rule. _Covers R4.3._
+- [ ] 17. Atomic counting in both limiters (`MULTI` `INCR` + `EXPIRE NX`); rename the option to `crisisResources`; the chat 429 carries `resources`. _Covers R1.1, R2.1, R2.4._
+  - [ ] 17.1 Write failing tests: the expiry is set in the same call as the count; two simultaneous first requests count 2; chat 429 has `resources`, query 429 doesn't.
+- [ ] 18. Chat page shows resources on the 429 (Vitest). _Covers R2.4 (UI)._
+- [ ] 19. Redis `commandTimeout: 1500`, `connectTimeout: 2000`; remove the duplicate success log. _Covers R1.2, R6.1._
+- [ ] 20. Request logger moved to `middleware/request-log.middleware.js` with a test that it logs `method` and `path` only. _Covers R4.4._
+- [ ] 21. Route wiring tests for auth (`ipRateLimitMiddleware('auth')`) and agent (`query`, `analyze`, `usageLimitMiddleware`). _Covers R1.1, R2.1, R3.1._
+- [ ] 22. Nits: add the criterion ID to the Chat test "shows no support resources for an error without them"; add the missing newline at the end of `game-api.tool.js`.
+
 ## Verification
 - [ ] Every acceptance criterion (R1.1–R8.1) maps to a passing test or a recorded manual check.
 - [ ] Backend `npm run lint` and `npm test` pass, and Jest exits on its own. Frontend `npm test` and `npm run build` pass. CI passes, including the Postgres suites.

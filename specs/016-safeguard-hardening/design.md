@@ -21,6 +21,11 @@ Every check that guards a request (IP rate limit, per-user rate limit, daily ana
 | Request log | `server.js:29` | Log `method` and `path` only, without `ip` (R4.4) |
 | Error responses | `middleware/error.middleware.js` | Only errors with a `statusCode` send their message. Remove the `'not found'` substring match; everything else gets a generic 500 (R4.5) |
 | Chat outage UI | `frontend/src/pages/Chat.jsx:121-124` | WHEN a send fails with `err.data.resources`, show the existing `SupportResources` under the error message (R2.2). This is a visible change, so it needs a screenshot for sign-off |
+| Atomic counting (round 1) | `middleware/rate-limit.middleware.js` | Both limiters count with one `MULTI` (`INCR` + `EXPIRE key ttl NX`) and compare the result, so a count can never be left without an expiry and simultaneous requests can't share one slot. The user limiter moves from get-then-set to count-then-compare, the same as the IP limiter |
+| Redis timeouts (round 1) | `config/redis.js` | Add `commandTimeout: 1500` and `connectTimeout: 2000`; `withTimeout` stays as the backstop. Remove the duplicate success log |
+| Chat 429 (round 1) | `middleware/rate-limit.middleware.js` | With `crisisResourcesOnOutage`, the 429 also carries `resources` (R2.4). Rename the option to `crisisResources` |
+| Task errors (round 1) | `agent/orchestrator.js:90-97`, `integrations/riot-games.js` | Store and return `error.statusCode ? error.message : TASK_FAILED_MESSAGE`. Riot methods throw `new Error('Failed to fetch <thing>')` without the outside message, and log only `region` and `errorFields` (R4.1, R4.6) |
+| Request logger (round 1) | `middleware/request-log.middleware.js` (new) | Move the request log out of `server.js` so it can be tested (R4.4) |
 | Stale script | `backend/setup-files.js` | Delete (R8.1) |
 | Missing query | `controllers/agent.controller.js:34` | `throw new ValidationError('query is required')` |
 | Match count | `tools/game-api.tool.js:80` | `clampCount(extraParams.count)`: integer, clamped to 1–20, default 20 |
@@ -69,6 +74,10 @@ No change.
 | R2.2 (UI) | Vitest: `Chat` with a send that rejects `{ status: 503, data: { error, resources } }` renders the error and a `Support resources` region listing each resource |
 | R3.1, R3.2 | Unit: `usageLimitMiddleware` with a failing `checkAnalysis` returns 503 and `next` isn't called |
 | R4.1, R4.2 | Unit: `errorFields` drops `message`, `detail` and `stack`; the error middleware logger spy gets no `message` or `stack` |
+| R4.3 (round 1 widening) | The scan also covers `console.*`, `logger[...]` and aliases, and flags a whole error passed as a value (`error`, `err`, `${error}`, `String(error)`), `.detail` and `.response`. The `.length` exception only applies to `query` and `content`. Each new rule has a fixture test |
+| R2.4 | Unit: chat limiter over the limit returns 429 + `resources`; query/analyze 429 has none. Vitest: the chat page shows resources on that 429 |
+| R4.6 | Unit: a task failing with a plain `Error('secret detail')` stores and returns the generic message; an app error keeps its own |
+| Route wiring (round 1) | Unit: the auth and agent routes use the fail-closed limiters and `usageLimitMiddleware` by default (`isolateModules`, as in the chat wiring test) |
 | R4.3 | Unit: a source scan of `backend/**/*.js` (excluding `node_modules`, `tests`) fails on a logger call containing `.message`, `.stack`, `req.body`, or a value of `query`, `content`, `email`, `password` |
 | R5.1 | Route test: `POST /api/agent/query {}` returns 400 |
 | R6.1, R6.2 | Unit: `connectRedis()` with a client whose `connect` rejects logs `redis_connect_failed` and resolves |

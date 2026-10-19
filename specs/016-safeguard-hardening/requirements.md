@@ -1,6 +1,6 @@
 # 016 — Safeguard Hardening: Requirements
 
-**Status:** Approved (2026-10-19; R4.4, R4.5, R8 added and approved the same day)
+**Status:** Approved (2026-10-19; R4.4, R4.5, R8 added and approved the same day; R2.4, R4.6 added after review round 1, approved 2026-10-19)
 **Related docs:** `docs/phase1-responsible-mvp.md` (Safeguard 6: usage limits), user-level security standards (public endpoints fail closed; logs carry no user content)
 
 ## Introduction
@@ -25,6 +25,7 @@ When Redis is down, the login and registration rate limit lets every request thr
 - R2.1 — IF the per-user rate limiter cannot read or update its counter, THEN the system shall respond `503` as in R1.1 and shall not run the handler.
 - R2.2 — IF R2.1 happens on the chat endpoint, THEN the response shall also include `resources: CRISIS_RESOURCES` (the existing list in `services/safeguards/messages.js`), and the chat screen shall show them, so that a user who is struggling during an outage still sees where to get help.
 - R2.3 — The time and logging limits in R1.2 and R1.3 shall also apply here.
+- R2.4 — WHEN a user goes over the chat rate limit (429), the response shall include `resources: CRISIS_RESOURCES` and the chat screen shall show them, so that someone in a long crisis conversation is never cut off without help.
 
 ### R3 — Daily analysis limit fails closed (Safeguard 6)
 **User story:** As a player, I want the daily analysis limit to always apply, so that the healthy-use safeguard is real rather than best-effort.
@@ -37,11 +38,12 @@ When Redis is down, the login and registration rate limit lets every request thr
 **User story:** As a player, I want what I type to stay out of server logs, so that private or crisis messages aren't stored where they shouldn't be.
 
 **Acceptance criteria**
-- R4.1 — The system shall not log request text: query, chat content, email, password or any other request-body field.
+- R4.1 — The system shall not log request text: query, chat content, email, password or any other request-body field. That includes identifiers a user supplies for an outside service (e.g. summoner names) and identifiers that service returns (e.g. Riot PUUIDs).
 - R4.2 — WHEN logging an error from Postgres, Redis, Claude or Riot, the system shall record only the error's name, code and HTTP status (where present) plus internal ids. It shall never record `error.message`, `error.detail` or response bodies.
 - R4.3 — The system shall have an automated test that fails if a log call in `backend/` (excluding tests) passes `error.message` or a known request-text field.
 - R4.4 — The system shall not log client IP addresses.
 - R4.5 — IF an error that isn't one of the app's own error classes (those with a `statusCode`) reaches the error handler, THEN the system shall respond `500 { "error": "Internal server error" }` and shall not send the error's message to the client.
+- R4.6 — IF a background analysis fails with an error that isn't one of the app's own error classes, THEN the task status shall report `The analysis couldn't be completed. Please try again.` and shall never store or return the error's message. Errors raised from an outside service's failure shall not carry that service's message.
 
 ### R5 — Missing query is a client error
 **Acceptance criteria**
@@ -78,3 +80,6 @@ When Redis is down, the login and registration rate limit lets every request thr
 - D4: Client IPs are no longer logged (R4.4).
 - D5: Only the app's own errors send their message to clients (R4.5).
 - D6: `backend/setup-files.js` is deleted (R8.1).
+- D7 (review round 1): Failed analyses show a generic message (R4.6).
+- D8 (review round 1): The chat 429 also includes crisis resources (R2.4).
+- D9 (review round 1): The usage-limit race (simultaneous requests can pass the daily cap) goes to a follow-up spec, 017, not 016.
