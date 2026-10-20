@@ -6,12 +6,14 @@
 const express = require('express');
 const { ChatService, ChatAbortedError } = require('../services/chat/chat.service');
 const logger = require('../utils/logger');
+const { errorFields } = require('../utils/log-fields');
 const { authMiddleware } = require('../middleware/auth.middleware');
 const { rateLimitMiddleware } = require('../middleware/rate-limit.middleware');
 
 function createChatRouter({
   chatService = new ChatService(),
-  rateLimit = rateLimitMiddleware('chat')
+  // The 503 (outage) and the 429 (over the limit) also list the crisis resources
+  rateLimit = rateLimitMiddleware('chat', { crisisResources: true })
 } = {}) {
   const router = express.Router();
 
@@ -119,7 +121,7 @@ function createChatRouter({
         // Nothing streamed yet: a normal JSON error with its status code
         return next(error);
       }
-      logger.error('Chat stream failed', { error: error.message });
+      logger.error('Chat stream failed', errorFields(error));
       send('error', {
         error: error.statusCode ? error.message : 'Something went wrong. Please try again.',
         status: error.statusCode || 500

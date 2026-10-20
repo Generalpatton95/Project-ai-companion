@@ -142,6 +142,74 @@ describe('Chat', () => {
     expect(within(screen.getByRole('log')).queryByText('are you there?')).not.toBeInTheDocument();
   });
 
+  it('R2.2: shows the support resources under the error when the chat limit is unavailable', async () => {
+    const outageResources = [
+      { name: '988 Suicide & Crisis Lifeline (US)', contact: 'Call or text 988' },
+      { name: 'Crisis Text Line', contact: 'Text HOME to 741741' },
+      { name: 'International Association for Suicide Prevention', contact: 'https://www.iasp.info/resources/Crisis_Centres/' }
+    ];
+    const error = 'Service temporarily unavailable. Please try again shortly.';
+    chatService.sendMessageStream.mockRejectedValue(
+      Object.assign(new Error(error), { status: 503, data: { error, resources: outageResources } })
+    );
+    render(<Chat />);
+
+    await userEvent.type(await screen.findByLabelText('Message'), 'are you there?{Enter}');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(error);
+    const support = screen.getByLabelText('Support resources');
+    expect(screen.getByRole('alert').compareDocumentPosition(support) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const items = within(support).getAllByRole('listitem');
+    expect(items).toHaveLength(3);
+    expect(items[0]).toHaveTextContent('988 Suicide & Crisis Lifeline (US): Call or text 988');
+    expect(items[1]).toHaveTextContent('Crisis Text Line: Text HOME to 741741');
+    expect(within(items[2]).getByRole('link')).toHaveAttribute('href', 'https://www.iasp.info/resources/Crisis_Centres/');
+    expect(screen.getByLabelText('Message')).toHaveValue('are you there?');
+  });
+
+  it('R2.2: clears the outage resources when the next send starts', async () => {
+    const error = 'Service temporarily unavailable. Please try again shortly.';
+    chatService.sendMessageStream
+      .mockRejectedValueOnce(Object.assign(new Error(error), { status: 503, data: { error, resources } }))
+      .mockResolvedValueOnce(reply('are you there?', 'I am here.'));
+    render(<Chat />);
+
+    await userEvent.type(await screen.findByLabelText('Message'), 'are you there?{Enter}');
+    expect(await screen.findByLabelText('Support resources')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(await screen.findByText('I am here.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Support resources')).not.toBeInTheDocument();
+  });
+
+  it('R2.4: shows the support resources when the chat rate limit is reached', async () => {
+    chatService.sendMessageStream.mockRejectedValue(
+      Object.assign(new Error('Rate limit exceeded'), {
+        status: 429,
+        data: { error: 'Rate limit exceeded', retryAfter: 900, resources }
+      })
+    );
+    render(<Chat />);
+
+    await userEvent.type(await screen.findByLabelText('Message'), 'I just need to talk{Enter}');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Rate limit exceeded');
+    expect(screen.getByLabelText('Support resources')).toHaveTextContent('988 Suicide & Crisis Lifeline (US): Call or text 988');
+    expect(screen.getByLabelText('Message')).toHaveValue('I just need to talk');
+  });
+
+  it('R2.2: shows no support resources for an error without them', async () => {
+    chatService.sendMessageStream.mockRejectedValue(
+      Object.assign(new Error('Rate limit exceeded'), { status: 429, data: { error: 'Rate limit exceeded' } })
+    );
+    render(<Chat />);
+
+    await userEvent.type(await screen.findByLabelText('Message'), 'hi{Enter}');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Rate limit exceeded');
+    expect(screen.queryByLabelText('Support resources')).not.toBeInTheDocument();
+  });
+
   it('shows resources for a distress reply and keeps chat open', async () => {
     chatService.sendMessageStream.mockResolvedValue(reply('nobody cares about me', 'It sounds like a hard time.', { safeguard: 'distress', resources }));
     render(<Chat />);

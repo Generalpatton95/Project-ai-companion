@@ -110,6 +110,9 @@ const REPORT_SCHEMAS = {
   meta_research: META_REPORT_SCHEMA
 };
 
+// The analysis types the app offers; any other task_type is rejected (400)
+const TASK_TYPES = Object.keys(REPORT_SCHEMAS);
+
 /**
  * The output_config.format for a task type, or null for unknown types.
  */
@@ -118,4 +121,4 @@ function reportFormat(taskType) {
   return schema ? { type: 'json_schema', schema } : null;
 }
 
-module.exports = { reportFormat, PLAYER_REPORT_SCHEMA, META_REPORT_SCHEMA };
+module.exports = { reportFormat, TASK_TYPES, PLAYER_REPORT_SCHEMA, META_REPORT_SCHEMA };

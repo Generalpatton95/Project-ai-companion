@@ -1,6 +1,21 @@
 const { BaseTool } = require('./base-tool');
 const { RiotGamesClient } = require('../integrations/riot-games');
 const logger = require('../utils/logger');
+const { errorFields } = require('../utils/log-fields');
+
+const MAX_MATCH_COUNT = 20;
+
+/**
+ * Match history size: an integer from 1 to 20, defaulting to 20 when it's
+ * missing or invalid (the count comes from the model's tool call).
+ */
+function clampCount(value) {
+  const count = parseInt(value, 10);
+  if (Number.isNaN(count)) {
+    return MAX_MATCH_COUNT;
+  }
+  return Math.min(Math.max(count, 1), MAX_MATCH_COUNT);
+}
 
 class GameAPITool extends BaseTool {
   // Set properties as class fields (before constructor)
@@ -44,7 +59,8 @@ class GameAPITool extends BaseTool {
       
       const { game, endpoint, player_id, region = 'na1', params: extraParams = {} } = params;
       
-      logger.debug('Executing game API tool', { game, endpoint, player_id });
+      // player_id is a summoner name or PUUID, so it is never logged
+      logger.debug('Executing game API tool', { game, endpoint });
       
       let result;
       
@@ -66,7 +82,7 @@ class GameAPITool extends BaseTool {
       });
       
     } catch (error) {
-      logger.error('Game API tool error', { error: error.message });
+      logger.error('Game API tool error', errorFields(error));
       return this.error(error.message);
     }
   }
@@ -77,7 +93,7 @@ class GameAPITool extends BaseTool {
         return await this.riotClient.getSummoner(playerId, region);
         
       case 'match_history': {
-        const count = extraParams.count || 20;
+        const count = clampCount(extraParams.count);
         return await this.riotClient.getMatchHistory(playerId, region, count);
       }
         
@@ -96,4 +112,4 @@ class GameAPITool extends BaseTool {
   }
 }
 
-module.exports = { GameAPITool };
+module.exports = { GameAPITool, clampCount };

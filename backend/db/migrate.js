@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { errorFields } = require('../utils/log-fields');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
@@ -36,7 +37,11 @@ async function migrate(pool) {
       ran.push(file);
     } catch (error) {
       await client.query('ROLLBACK');
-      throw new Error(`Migration ${file} failed: ${error.message}`);
+      // Keep Postgres's code (e.g. 42P07), not its message
+      const failure = new Error(`Migration ${file} failed`);
+      failure.code = error.code;
+      failure.migration = file;
+      throw failure;
     } finally {
       client.release();
     }
@@ -54,7 +59,7 @@ if (require.main === module) {
       console.log(ran.length ? `Applied: ${ran.join(', ')}` : 'Database is up to date');
     })
     .catch((error) => {
-      console.error(error.message);
+      console.error('Migration failed', { migration: error.migration, ...errorFields(error) });
       process.exitCode = 1;
     })
     .finally(() => pool.end());

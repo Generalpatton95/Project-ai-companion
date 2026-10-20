@@ -9,6 +9,7 @@ import { getMoodSummary } from '../services/safeguards.service.js';
 import PersonalitySelector from '../components/chat/PersonalitySelector.jsx';
 import MessageList from '../components/chat/MessageList.jsx';
 import InputBox from '../components/chat/InputBox.jsx';
+import SupportResources from '../components/safeguards/SupportResources.jsx';
 
 const MOOD_LABELS = {
   good: '😊 Feeling good',
@@ -26,10 +27,13 @@ export default function Chat() {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
+  // Crisis resources sent with a failed send (e.g. a 503 during an outage)
+  const [errorResources, setErrorResources] = useState(null);
   const [mood, setMood] = useState(null);
 
   const openConversation = useCallback(async (id) => {
     setError(null);
+    setErrorResources(null);
     try {
       const data = await chatService.getConversation(id);
       setConversation(data.conversation);
@@ -67,6 +71,7 @@ export default function Chat() {
     setConversation(null);
     setMessages([]);
     setError(null);
+    setErrorResources(null);
   };
 
   const changePersonality = async (next) => {
@@ -77,6 +82,7 @@ export default function Chat() {
     } catch {
       setPersonality(conversation.personality);
       setError("Couldn't switch modes. Please try again.");
+      setErrorResources(null);
     }
   };
 
@@ -87,6 +93,7 @@ export default function Chat() {
     const isTemporary = (m) => m.id === pendingId || m.id === streamingId;
     setSending(true);
     setError(null);
+    setErrorResources(null);
     setMessages((current) => [...current, { id: pendingId, role: 'user', text: content }]);
     setDraft('');
 
@@ -122,6 +129,7 @@ export default function Chat() {
       setMessages((current) => current.filter((m) => !isTemporary(m)));
       setDraft(content);
       setError(err.status ? err.message : "Couldn't reach the server. Your message wasn't sent.");
+      setErrorResources(err.data && Array.isArray(err.data.resources) ? err.data.resources : null);
     } finally {
       setSending(false);
     }
@@ -170,6 +178,7 @@ export default function Chat() {
       />
 
       {error && <p className="error" role="alert">{error}</p>}
+      {error && errorResources && <SupportResources resources={errorResources} />}
 
       {ended ? (
         <div className="chat-ended" role="note">

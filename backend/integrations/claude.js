@@ -6,6 +6,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { errorFields } = require('../utils/log-fields');
 
 class ClaudeProvider {
   constructor({
@@ -87,7 +88,7 @@ class ClaudeProvider {
       };
 
     } catch (error) {
-      logger.error('Claude API error', { error: error.message });
+      logger.error('Claude API error', errorFields(error));
       throw error;
     }
   }

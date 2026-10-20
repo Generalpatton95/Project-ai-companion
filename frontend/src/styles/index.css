@@ -352,6 +352,7 @@ h2 {
 }
 
 .support a {
+  color: var(--color-primary);
   overflow-wrap: anywhere;
 }
 
