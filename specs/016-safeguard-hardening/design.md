@@ -27,6 +27,7 @@ Every check that guards a request (IP rate limit, per-user rate limit, daily ana
 | Task errors (round 1) | `agent/orchestrator.js:90-97`, `integrations/riot-games.js` | Store and return `error.statusCode ? error.message : TASK_FAILED_MESSAGE`. Riot methods throw `new Error('Failed to fetch <thing>')` without the outside message, and log only `region` and `errorFields` (R4.1, R4.6) |
 | Request logger (round 1) | `middleware/request-log.middleware.js` (new) | Move the request log out of `server.js` so it can be tested (R4.4) |
 | Stale script | `backend/setup-files.js` | Delete (R8.1) |
+| Resource link colour (sign-off) | `frontend/src/styles/index.css` (`.support a`) | Add `color: var(--color-primary)`, so the crisis link meets 4.5:1 contrast in both themes (D10). Applies everywhere `SupportResources` is shown |
 | Missing query | `controllers/agent.controller.js:34` | `throw new ValidationError('query is required')` |
 | Match count | `tools/game-api.tool.js:80` | `clampCount(extraParams.count)`: integer, clamped to 1–20, default 20 |
 

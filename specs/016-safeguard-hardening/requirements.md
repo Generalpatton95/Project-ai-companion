@@ -83,3 +83,5 @@ When Redis is down, the login and registration rate limit lets every request thr
 - D7 (review round 1): Failed analyses show a generic message (R4.6).
 - D8 (review round 1): The chat 429 also includes crisis resources (R2.4).
 - D9 (review round 1): The usage-limit race (simultaneous requests can pass the daily cap) goes to a follow-up spec, 017, not 016.
+- D10 (screenshot sign-off): The crisis-resource web link uses the app's accent colour, so it can be read on the dark card (contrast 1.52:1 before, 5.76:1 after; light theme 4.56:1). The 503 and 429 screens are otherwise approved.
+- D11 (screenshot sign-off): The wording of the limit and outage messages, and a line introducing the resources, go to a follow-up spec with a mental-health review (018), not 016.

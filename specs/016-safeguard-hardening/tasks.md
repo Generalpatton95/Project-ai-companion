@@ -68,6 +68,9 @@ Each task is small enough to finish and test in one sitting. Check it off only w
 - [ ] 25. Scanner: whole-error rule also covers `e`, `ex`, `reason`; request-text rule adds `summonerName`, `puuid`, `player_id`, `playerId`, `summonerId`, `matchId`, `task_type`; property rule for `req.query`, `req.params`, `req.headers`, `req.url`, `req.originalUrl`. Fixture test for each. _Covers R4.3._
 - [ ] 26. Limiter treats a count that isn't an integer as unavailable (503). _Covers R1.1, R2.1._
 
+## Screenshot sign-off (2026-10-19)
+- [ ] 27. Crisis-resource link uses `var(--color-primary)` (`.support a`), so it meets 4.5:1 contrast in both themes. Frontend tests and build pass; new screenshot of the chat 503. _Covers R2.2, R2.4 (UI); D10._
+
 ## Verification
 - [ ] Every acceptance criterion (R1.1–R8.1) maps to a passing test or a recorded manual check.
 - [ ] Backend `npm run lint` and `npm test` pass, and Jest exits on its own. Frontend `npm test` and `npm run build` pass. CI passes, including the Postgres suites.

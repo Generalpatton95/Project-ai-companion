@@ -26,7 +26,8 @@ Status: `—` not started · `Req` requirements drafted · `Design` · `Tasks` �
 | 014 | Onboarding, settings, resources pages | Wk 7–8 | Unverified | Welcome screen in PR #3; `Settings.jsx` and `Profile.jsx` exist |
 | 015 | Deployment | Wk 11–12 | — | Neon (DB), Vercel (frontend), long-running backend host (Railway/Render/Fly); move rate limits to shared storage; `trust proxy`; secrets; rate-limit `/health` and the 404 handler (016 review) |
 | 016 | Safeguard hardening | Before public launch | Build | From the PR #9 review: fail-closed limits, no user content or IPs in logs, no error leaks. **Blocks release** |
-| 017 | Usage-limit concurrency | Before public launch | — | From the 016 review: simultaneous `/analyze` requests can pass the daily cap (check happens before the count is recorded); needs reserve-then-refund. Also Postgres `connectionTimeoutMillis` / `statement_timeout` |
+| 017 | Usage-limit concurrency | Before public launch | — | From the 016 review: simultaneous `/analyze` requests can pass the daily cap (check happens before the count is recorded); needs reserve-then-refund. Also Postgres `connectionTimeoutMillis` / `statement_timeout`. Also: while Redis is down, `Redis error` is logged on every reconnect attempt (about every 2s); log only the first failure and the recovery |
+| 018 | Limit and outage wording | Before public launch | — | From the 016 sign-off: kinder wording than 'Rate limit exceeded' and the outage message, and a short line introducing the crisis resources. Needs the mental-health review (README rule 6) |
 | R1 | Reconcile specs 001–015 with `main` | Next | — | Bring 001/002 from their branches up to date with the code; write specs for `Built, no spec` rows; check `Unverified` rows |
 
 Frontend work for each feature goes in the same spec as its backend work, so each spec covers the whole feature end to end.
