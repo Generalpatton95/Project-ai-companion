@@ -1,6 +1,6 @@
 # 016 — Safeguard Hardening: Design
 
-**Status:** Approved (2026-10-19)
+**Status:** Done (2026-10-19), implemented in PR #11; approved (2026-10-19)
 **Requirements:** ./requirements.md
 
 ## Overview

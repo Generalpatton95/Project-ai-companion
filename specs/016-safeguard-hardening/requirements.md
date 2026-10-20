@@ -1,6 +1,6 @@
 # 016 — Safeguard Hardening: Requirements
 
-**Status:** Approved (2026-10-19; R4.4, R4.5, R8 added and approved the same day; R2.4, R4.6 added after review round 1, approved 2026-10-19)
+**Status:** Done (2026-10-19), implemented in PR #11. Approved (2026-10-19; R4.4, R4.5, R8 added and approved the same day; R2.4, R4.6 added after review round 1, approved 2026-10-19)
 **Related docs:** `docs/phase1-responsible-mvp.md` (Safeguard 6: usage limits), user-level security standards (public endpoints fail closed; logs carry no user content)
 
 ## Introduction
