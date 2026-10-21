@@ -1,6 +1,6 @@
 # 017 — Usage-Limit Concurrency: Requirements
 
-**Status:** Approved (2026-10-21; R1.4 amended and R2.7, R2.8 added after review round 1, approved 2026-10-21)
+**Status:** Done (2026-10-21), implemented in PR #14. Approved (2026-10-21; R1.4 amended and R2.7, R2.8 added after review round 1, approved 2026-10-21)
 **Related docs:** `docs/phase1-responsible-mvp.md` (Safeguard 6: usage limits), `specs/016-safeguard-hardening/` (fail-closed checks, log hygiene), user-level security standards (checks fail closed; logs carry codes, not messages)
 
 ## Introduction
