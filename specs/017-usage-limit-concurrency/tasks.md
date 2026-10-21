@@ -1,6 +1,6 @@
 # 017 — Usage-Limit Concurrency: Tasks
 
-**Status:** Approved (2026-10-21)
+**Status:** Done (2026-10-21), implemented in PR #14. Approved (2026-10-21)
 **Design:** ./design.md
 
 Each task is small enough to finish and test in one sitting. Check it off only when its tests pass. Tests name the criterion IDs they cover.
@@ -19,13 +19,13 @@ Each task is small enough to finish and test in one sitting. Check it off only w
 - [x] 5. `handleAnalysis(body, user, { onFailed })` and the route passes `req.usageSlot.release`. _Covers R1.8_
   - [x] 5.1 Failing tests: `done` resolving `failed`, `undefined` or a timeout result → one release. `completed` → none.
   - [x] 5.2 Implement.
-- [ ] 6. Real-Redis integration (`tests/integration/redis/usage.redis.test.js`, skipped without `REDIS_URL`): 10 parallel reservations → 5 granted. 10 simultaneous requests through the middleware → 5 pass, 5 × 429. Release decrements, and stays at 0 at 0. _Covers R1.2 (NFR2)_
+- [x] 6. Real-Redis integration (`tests/integration/redis/usage.redis.test.js`, skipped without `REDIS_URL`): 10 parallel reservations → 5 granted. 10 simultaneous requests through the middleware → 5 pass, 5 × 429. Release decrements, and stays at 0 at 0. _Covers R1.2 (NFR2)_
 
 ## R2 — Postgres
-- [ ] 7. `config/database.js`: `DB_TIMEOUTS`, `createPool({ timeouts })`, shared pool unchanged for callers; `db/migrate.js` CLI uses `createPool({ timeouts: false })`. _Covers R2.1, R2.2_
+- [x] 7. `config/database.js`: `DB_TIMEOUTS`, `createPool({ timeouts })`, shared pool unchanged for callers; `db/migrate.js` CLI uses `createPool({ timeouts: false })`. _Covers R2.1, R2.2_
   - [x] 7.1 Failing unit tests on the pool options.
   - [x] 7.2 Implement.
-  - [ ] 7.3 Postgres integration (CI only): `SELECT pg_sleep(6)` → `57014` on the app pool, succeeds on the migration pool.
+  - [x] 7.3 Postgres integration (CI only): `SELECT pg_sleep(6)` → `57014` on the app pool, succeeds on the migration pool.
 - [x] 8. `utils/store-errors.js` `isStoreUnavailable`. Confirm pg's fixed timeout and termination strings against the locked pg 8.23.1 and pg-pool 3.14.0 source, and record where each comes from in a test comment. _Covers R2.3_
   - [x] 8.1 Failing tests for every code and string, plus negatives (`23505`, `ValidationError`, a plain `Error`).
   - [x] 8.2 Implement.
@@ -44,7 +44,7 @@ Each task is small enough to finish and test in one sitting. Check it off only w
 - [x] 18. `slot.markStarted()` before `handleAnalysis`; `close` after it doesn't release; capture the slot (not `req`) in `onFailed`. Tests: close during a pending `startTask` keeps the slot; a throwing `handleAnalysis` still releases via the ≥ 400 response. _Covers R1.4 (amended), R1.8_
 - [x] 19. More outage errors: ioredis `MaxRetriesPerRequestError`, `Connection is closed.`, `Command timed out`; pg `timeout expired` and the two "not queryable" errors; socket codes `ENETUNREACH`, `ENETDOWN`, `EHOSTDOWN`, `ECONNABORTED` (also used by Redis outage logging). Confirm each string against the locked source and record file:line in the test. Route-level tests: a Redis no-code failure on `GET /api/agent/task/:id` and a safeguards route → 503. _Covers R2.8, R3.1_
 - [x] 20. Chat screen shows resources when a mode switch fails (R2.4); `resourcesOf` keeps only entries with a string `name` and `contact`, and `SupportResources` links only `https://` contacts. Vitest tests. _Covers R2.4_
-- [ ] 21. Tidy: prefix the 016 IDs that clash with 017 IDs in older test names with `016 `; the Postgres migration-pool test checks `SHOW statement_timeout` = `0` instead of sleeping; the Redis usage integration test uses one `now` throughout.
+- [x] 21. Tidy: prefix the 016 IDs that clash with 017 IDs in older test names with `016 `; the Postgres migration-pool test checks `SHOW statement_timeout` = `0` instead of sleeping; the Redis usage integration test uses one `now` throughout.
 
 ## Verification
 - [x] 14. `npm test` (backend) and `npx vitest run` (frontend) pass; backend `npx eslint .` is clean; the log-hygiene scan is green.
@@ -61,4 +61,5 @@ Each task is small enough to finish and test in one sitting. Check it off only w
     - Log scan (100 lines): 0 hits for the test email, IPs, the chat texts, `message`, stack, password, Bearer or pg's error strings.
     - **Owner sign-off (2026-10-21):** both chat screens approved; commit and open the PR.
     - Found, not caused by 017: with Postgres down, the app's start-up check (`GET /api/auth/me`) fails, so the whole page shows "Couldn't reach the server." without the resources. Owner decision: goes to backlog item 018b.
-- [ ] 16. Every acceptance criterion maps to a passing test or a recorded manual check; CI green (including real Redis and Postgres); `BACKLOG.md` updated; spec status → `Done`.
+- [x] 16. Every acceptance criterion maps to a passing test or a recorded manual check; CI green (including real Redis and Postgres); `BACKLOG.md` updated; spec status → `Done`.
+  - **CI (2026-10-21):** PR #14 head 43e19b3: backend lint, backend tests (32/32 suites, 390/390 tests, including `usage.redis`, `rate-limit.redis`, `db/timeouts`, `user.model`, `chat.model` against real Redis 7 and Postgres 16) and frontend tests and build all passed. Merged as 81dd51e; CI on `main` green (Lint, Test).

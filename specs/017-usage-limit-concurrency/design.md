@@ -1,6 +1,6 @@
 # 017 — Usage-Limit Concurrency: Design
 
-**Status:** Approved (2026-10-21; amended after review round 1 for D3–D5, approved 2026-10-21)
+**Status:** Done (2026-10-21), implemented in PR #14. Approved (2026-10-21; amended after review round 1 for D3–D5, approved 2026-10-21)
 **Requirements:** ./requirements.md
 
 ## Overview
