@@ -11,7 +11,9 @@ export default function SupportResources({ message, resources = [] }) {
         {resources.map((resource) => (
           <li key={resource.name}>
             <strong>{resource.name}:</strong>{' '}
-            {resource.contact.startsWith('http') ? (
+            {/* Only an https:// contact becomes a link, so nothing else
+                (javascript:, data:, plain http) can reach an href */}
+            {resource.contact.startsWith('https://') ? (
               <a href={resource.contact} target="_blank" rel="noreferrer">
                 {resource.contact}
               </a>

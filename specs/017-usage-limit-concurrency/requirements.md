@@ -1,6 +1,6 @@
 # 017 — Usage-Limit Concurrency: Requirements
 
-**Status:** Approved (2026-10-21)
+**Status:** Approved (2026-10-21; R1.4 amended and R2.7, R2.8 added after review round 1, approved 2026-10-21)
 **Related docs:** `docs/phase1-responsible-mvp.md` (Safeguard 6: usage limits), `specs/016-safeguard-hardening/` (fail-closed checks, log hygiene), user-level security standards (checks fail closed; logs carry codes, not messages)
 
 ## Introduction
@@ -21,7 +21,7 @@ Third, while Redis is down, ioredis raises an `error` event on every reconnect a
 - R1.1 — The system shall take an analysis slot and check it against the limit in one atomic step, before the analysis starts.
 - R1.2 — WHEN any number of `POST /api/agent/analyze` requests from a free-tier user arrive at the same time, the system shall start at most 5 analyses for that user that day (UTC) and shall answer the rest `429` as it does today.
 - R1.3 — WHEN a paid-tier user is at or over the soft limit of 10 and sends a request without `override`, the system shall answer `429` (overridable) and shall not use up a slot. WHEN the request has `override: true`, the system shall take a slot and set the `X-Safeguard-Usage-Reminder` header, as it does today.
-- R1.4 — IF a request that took a slot ends with a status of `400` or above, or the client disconnects before a response is sent, THEN the system shall give the slot back exactly once.
+- R1.4 — IF a request that took a slot ends with a status of `400` or above, or the client disconnects before the analysis has started, THEN the system shall give the slot back exactly once.
 - R1.5 — WHEN a slot is given back, the system shall return it to the same day it was taken from, even if midnight UTC has passed since then, and the count shall never go below 0.
 - R1.6 — IF a slot can't be taken because Redis fails or doesn't answer in time, THEN the system shall answer `503` and shall not start the analysis (as R3.1 of 016). IF giving a slot back fails, THEN the system shall log the event name and an error code only, and the slot stays used.
 - R1.7 — `GET /api/safeguards/usage` shall report today's count and limit without taking a slot.
@@ -36,6 +36,8 @@ Third, while Redis is down, ioredis raises an `error` event on every reconnect a
 - R2.3 — IF a request fails because of R2.1 or R2.2, or because Postgres is unreachable, THEN the system shall answer `503` with the existing outage body and `Retry-After` header from 016 (`utils/unavailable.js`), not `500`.
 - R2.4 — IF R2.3 happens on a chat endpoint, THEN the response shall also include `resources: CRISIS_RESOURCES`, as for chat's other `503` (016 D1), and the chat screen shall show them.
 - R2.5 — WHEN R2.3 happens, the system shall log the event name, the error's name and code, the method and the path only (016 R4.2).
+- R2.7 — IF chat can't get a reply from Claude, THEN the system shall answer `503` with the existing message `The companion is unavailable right now. Please try again in a moment.` (unchanged) and `resources: CRISIS_RESOURCES`, both as JSON and as a mid-stream `error` event, and the chat screen shall show them. It shall log this as `companion_unavailable`, not as a store outage.
+- R2.8 — IF a request fails because Redis is unreachable or doesn't answer in time (including ioredis errors that carry no code), THEN the system shall answer `503` as in R2.3 (with resources on chat endpoints, as in R2.4), not `500`.
 - R2.6 — A transaction that fails because of R2.1 or R2.2 shall be rolled back and its connection returned to the pool.
 
 ### R3 — Redis outages are logged once, with recovery
@@ -50,7 +52,7 @@ Third, while Redis is down, ioredis raises an `error` event on every reconnect a
 ## Non-functional requirements
 - NFR1 — No new data is collected and no new outside service is used.
 - NFR2 — Tests name the criterion IDs they cover (e.g. `test('R1.2: …')`). R1.2 is tested against a real Redis in CI as well as with a fake store.
-- NFR3 — No change to the wording of the limit, outage or crisis messages (that is spec 018). R2.4 reuses the existing `CRISIS_RESOURCES` list, so no new mental-health review is needed (README rule 6).
+- NFR3 — No change to the wording of the limit, outage or crisis messages (that is spec 018). R2.4 reuses the existing `CRISIS_RESOURCES` list, so no new mental-health review is needed (README rule 6). R2.7 keeps the existing Claude-failure wording; that message joins spec 018's wording review.
 - NFR4 — The fail-closed behaviour from 016 stays: if a check can't run, the request is refused.
 
 ## Out of scope
@@ -62,3 +64,7 @@ Third, while Redis is down, ioredis raises an `error` event on every reconnect a
 ## Decisions (2026-10-21)
 - D1 (was Q1): When an accepted analysis fails later in the background, the user gets the slot back (R1.8). The 10-per-15-minutes rate limit still caps how often failures can repeat.
 - D2 (was Q2): Postgres gives up connecting after 2 seconds and cancels queries after 5 seconds (R2.1, R2.2). Migrations are not limited.
+- D3 (review round 1): a Claude failure in chat keeps its own wording and also lists the crisis resources (R2.7), like every other chat 503.
+- D4 (review round 1): once an analysis has started, a disconnect no longer gives the slot back; only a failed analysis does (R1.4, R1.8).
+- D5 (review round 1): Redis errors without a code, pg's remaining fixed connection errors, and more network codes count as outages (R2.8, R3.1).
+- D6 (review round 1): left for later (`BACKLOG.md`): a fixed `reason` on `store_unavailable` and logging the route pattern instead of the path; skipping `ROLLBACK` after a client-side read timeout; `crypto.randomUUID()` task ids; not refunding timed-out analyses.

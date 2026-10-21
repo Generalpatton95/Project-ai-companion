@@ -142,7 +142,7 @@ describe('Chat', () => {
     expect(within(screen.getByRole('log')).queryByText('are you there?')).not.toBeInTheDocument();
   });
 
-  it('R2.2: shows the support resources under the error when the chat limit is unavailable', async () => {
+  it('016 R2.2: shows the support resources under the error when the chat limit is unavailable', async () => {
     const outageResources = [
       { name: '988 Suicide & Crisis Lifeline (US)', contact: 'Call or text 988' },
       { name: 'Crisis Text Line', contact: 'Text HOME to 741741' },
@@ -167,7 +167,7 @@ describe('Chat', () => {
     expect(screen.getByLabelText('Message')).toHaveValue('are you there?');
   });
 
-  it('R2.2: clears the outage resources when the next send starts', async () => {
+  it('016 R2.2: clears the outage resources when the next send starts', async () => {
     const error = 'Service temporarily unavailable. Please try again shortly.';
     chatService.sendMessageStream
       .mockRejectedValueOnce(Object.assign(new Error(error), { status: 503, data: { error, resources } }))
@@ -183,7 +183,7 @@ describe('Chat', () => {
     expect(screen.queryByLabelText('Support resources')).not.toBeInTheDocument();
   });
 
-  it('R2.4: shows the support resources when the chat rate limit is reached', async () => {
+  it('016 R2.4: shows the support resources when the chat rate limit is reached', async () => {
     chatService.sendMessageStream.mockRejectedValue(
       Object.assign(new Error('Rate limit exceeded'), {
         status: 429,
@@ -199,7 +199,116 @@ describe('Chat', () => {
     expect(screen.getByLabelText('Message')).toHaveValue('I just need to talk');
   });
 
-  it('R2.2: shows no support resources for an error without them', async () => {
+  describe('R2.4: database outages (spec 017)', () => {
+    const outage = 'Service temporarily unavailable. Please try again shortly.';
+    const outageError = () => Object.assign(new Error(outage), { status: 503, data: { error: outage, status: 503, resources } });
+
+    it('R2.4: shows the support resources when a reply fails mid-stream', async () => {
+      chatService.sendMessageStream.mockImplementation(async (id, content, { onDelta }) => {
+        onDelta('Half a ');
+        throw outageError();
+      });
+      render(<Chat />);
+
+      await userEvent.type(await screen.findByLabelText('Message'), 'are you there?{Enter}');
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(outage);
+      expect(screen.getByLabelText('Support resources')).toHaveTextContent('988 Suicide & Crisis Lifeline (US): Call or text 988');
+      expect(within(screen.getByRole('log')).queryByText('Half a')).not.toBeInTheDocument();
+      expect(screen.getByLabelText('Message')).toHaveValue('are you there?');
+    });
+
+    it('R2.4: shows the support resources when opening a conversation fails', async () => {
+      chatService.listConversations.mockResolvedValue([conversation]);
+      chatService.getConversation.mockRejectedValue(outageError());
+      render(<Chat />);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load that conversation.");
+      expect(screen.getByLabelText('Support resources')).toHaveTextContent('988 Suicide & Crisis Lifeline (US): Call or text 988');
+    });
+
+    it('R2.4: shows the support resources when listing conversations fails', async () => {
+      chatService.listConversations.mockRejectedValue(outageError());
+      render(<Chat />);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load your conversations.");
+      expect(screen.getByLabelText('Support resources')).toHaveTextContent('988 Suicide & Crisis Lifeline (US): Call or text 988');
+    });
+
+    it('R2.4: a load failure without resources shows none', async () => {
+      chatService.listConversations.mockRejectedValue(Object.assign(new Error('Internal server error'), { status: 500, data: { error: 'Internal server error' } }));
+      render(<Chat />);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load your conversations.");
+      expect(screen.queryByLabelText('Support resources')).not.toBeInTheDocument();
+    });
+
+    it('R2.4: shows the support resources when switching modes fails', async () => {
+      chatService.listConversations.mockResolvedValue([conversation]);
+      chatService.getConversation.mockResolvedValue({ conversation, messages: [{ id: '1', role: 'assistant', text: 'Kraken first.' }] });
+      chatService.setPersonality.mockRejectedValue(outageError());
+      render(<Chat />);
+
+      expect(await screen.findByText('Kraken first.')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('radio', { name: /Analyst/ }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't switch modes. Please try again.");
+      expect(screen.getByLabelText('Support resources')).toHaveTextContent('988 Suicide & Crisis Lifeline (US): Call or text 988');
+      expect(screen.getByRole('radio', { name: /Friend/ })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('R2.4: only resources with a string name and contact are shown', async () => {
+      const mixed = [
+        { name: '988 Suicide & Crisis Lifeline (US)', contact: 'Call or text 988' },
+        { name: 'No contact' },
+        { name: 42, contact: 'Text HOME to 741741' },
+        null,
+        'Crisis Text Line',
+        { name: 'Object contact', contact: { href: 'https://example.com' } }
+      ];
+      chatService.sendMessageStream.mockRejectedValue(
+        Object.assign(new Error(outage), { status: 503, data: { error: outage, resources: mixed } })
+      );
+      render(<Chat />);
+
+      await userEvent.type(await screen.findByLabelText('Message'), 'hi{Enter}');
+
+      const support = await screen.findByLabelText('Support resources');
+      const items = within(support).getAllByRole('listitem');
+      expect(items).toHaveLength(1);
+      expect(items[0]).toHaveTextContent('988 Suicide & Crisis Lifeline (US): Call or text 988');
+    });
+
+    it('R2.4: resources with no valid entries show no support block', async () => {
+      chatService.sendMessageStream.mockRejectedValue(
+        Object.assign(new Error(outage), { status: 503, data: { error: outage, resources: [{ name: 'x' }, null] } })
+      );
+      render(<Chat />);
+
+      await userEvent.type(await screen.findByLabelText('Message'), 'hi{Enter}');
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(outage);
+      expect(screen.queryByLabelText('Support resources')).not.toBeInTheDocument();
+    });
+
+    it('R2.4: opening another conversation clears the outage resources', async () => {
+      const other = { ...conversation, id: 'c2', title: 'Lane tips' };
+      chatService.listConversations.mockResolvedValue([conversation, other]);
+      chatService.getConversation
+        .mockRejectedValueOnce(outageError())
+        .mockResolvedValueOnce({ conversation: other, messages: [{ id: '1', role: 'assistant', text: 'Freeze the wave.' }] });
+      render(<Chat />);
+
+      expect(await screen.findByLabelText('Support resources')).toBeInTheDocument();
+      await userEvent.selectOptions(screen.getByLabelText('Past chats'), 'c2');
+
+      expect(await screen.findByText('Freeze the wave.')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText('Support resources')).not.toBeInTheDocument();
+    });
+  });
+
+  it('016 R2.2: shows no support resources for an error without them', async () => {
     chatService.sendMessageStream.mockRejectedValue(
       Object.assign(new Error('Rate limit exceeded'), { status: 429, data: { error: 'Rate limit exceeded' } })
     );

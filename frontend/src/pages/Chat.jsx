@@ -19,6 +19,14 @@ const MOOD_LABELS = {
 
 const DEFAULT_PERSONALITY = 'friend';
 
+// Crisis resources the server sent with an error (an outage or the chat
+// limit), keeping only entries with a string name and contact; null if none
+function resourcesOf(err) {
+  const list = err && err.data && Array.isArray(err.data.resources) ? err.data.resources : [];
+  const valid = list.filter((r) => r && typeof r.name === 'string' && typeof r.contact === 'string');
+  return valid.length ? valid : null;
+}
+
 export default function Chat() {
   const [conversations, setConversations] = useState([]);
   const [conversation, setConversation] = useState(null);
@@ -27,7 +35,7 @@ export default function Chat() {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
-  // Crisis resources sent with a failed send (e.g. a 503 during an outage)
+  // Crisis resources sent with a failed send or load (e.g. a 503 during an outage)
   const [errorResources, setErrorResources] = useState(null);
   const [mood, setMood] = useState(null);
 
@@ -39,8 +47,9 @@ export default function Chat() {
       setConversation(data.conversation);
       setPersonality(data.conversation.personality);
       setMessages(data.messages);
-    } catch {
+    } catch (err) {
       setError("Couldn't load that conversation.");
+      setErrorResources(resourcesOf(err));
     }
   }, []);
 
@@ -55,8 +64,11 @@ export default function Chat() {
         if (latest) {
           await openConversation(latest.id);
         }
-      } catch {
-        if (!cancelled) setError("Couldn't load your conversations.");
+      } catch (err) {
+        if (!cancelled) {
+          setError("Couldn't load your conversations.");
+          setErrorResources(resourcesOf(err));
+        }
       }
     })();
     getMoodSummary()
@@ -79,10 +91,10 @@ export default function Chat() {
     if (!conversation) return;
     try {
       setConversation(await chatService.setPersonality(conversation.id, next));
-    } catch {
+    } catch (err) {
       setPersonality(conversation.personality);
       setError("Couldn't switch modes. Please try again.");
-      setErrorResources(null);
+      setErrorResources(resourcesOf(err));
     }
   };
 
@@ -129,7 +141,7 @@ export default function Chat() {
       setMessages((current) => current.filter((m) => !isTemporary(m)));
       setDraft(content);
       setError(err.status ? err.message : "Couldn't reach the server. Your message wasn't sent.");
-      setErrorResources(err.data && Array.isArray(err.data.resources) ? err.data.resources : null);
+      setErrorResources(resourcesOf(err));
     } finally {
       setSending(false);
     }

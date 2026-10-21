@@ -10,6 +10,7 @@ jest.mock('../../../integrations/riot-games', () => ({
 }));
 
 const jwt = require('jsonwebtoken');
+const { COUNT_SCRIPT } = require('../../../middleware/rate-limit.middleware');
 
 const UNAVAILABLE = 'Service temporarily unavailable. Please try again shortly.';
 
@@ -28,10 +29,13 @@ const downStore = () => ({
   expire: async () => { throw storeError(); }
 });
 
-// The rate-limit count works, but the usage counter can't be read
+// The rate-limit count works, but a usage slot can't be taken
 const usageDownStore = () => ({
   ...downStore(),
-  eval: async () => 1
+  eval: async (script) => {
+    if (script === COUNT_SCRIPT) return 1;
+    throw storeError();
+  }
 });
 
 describe('route wiring', () => {
@@ -87,7 +91,7 @@ describe('route wiring', () => {
     }
   });
 
-  test.each(['/api/auth/login', '/api/auth/register'])('R1.1: %s uses the IP limiter by default, so Redis down gives 503', async (path) => {
+  test.each(['/api/auth/login', '/api/auth/register'])('016 R1.1: %s uses the IP limiter by default, so Redis down gives 503', async (path) => {
     await start(downStore());
 
     const result = await post(path, { email: 'player@example.com', password: 'correct horse', ageConfirmed: true });
@@ -99,7 +103,7 @@ describe('route wiring', () => {
     expect(authService.register).not.toHaveBeenCalled();
   });
 
-  test('R2.1: /api/agent/query uses the query limiter by default, so Redis down gives 503', async () => {
+  test('016 R2.1: /api/agent/query uses the query limiter by default, so Redis down gives 503', async () => {
     await start(downStore());
 
     const result = await post('/api/agent/query', { query: 'best jungle route?' }, token);
@@ -108,7 +112,7 @@ describe('route wiring', () => {
     expect(result.body).toEqual({ error: UNAVAILABLE });
   });
 
-  test('R2.1: /api/agent/analyze uses the analyze limiter by default, so Redis down gives 503', async () => {
+  test('016 R2.1: /api/agent/analyze uses the analyze limiter by default, so Redis down gives 503', async () => {
     await start(downStore());
 
     const result = await post('/api/agent/analyze', { task_type: 'match_analysis' }, token);
@@ -118,7 +122,7 @@ describe('route wiring', () => {
     expect(logger.error).toHaveBeenCalledWith('rate_limit_unavailable', expect.any(Object));
   });
 
-  test('R3.1: /api/agent/analyze uses the daily usage check by default, so a usage outage gives 503', async () => {
+  test('016 R3.1: /api/agent/analyze uses the daily usage check by default, so a usage outage gives 503', async () => {
     await start(usageDownStore());
 
     const result = await post('/api/agent/analyze', { task_type: 'match_analysis' }, token);

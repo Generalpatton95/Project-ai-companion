@@ -97,16 +97,72 @@ describe('safeguard routes and middleware', () => {
   });
 
   test('free tier is blocked after the daily limit', async () => {
+    // Each slot is taken before the handler runs
     for (let i = 0; i < 5; i++) {
       expect((await call('POST', '/agent/analyze', {})).status).toBe(200);
     }
-    // Usage is recorded on response finish; let those writes settle
-    await new Promise((resolve) => setImmediate(resolve));
 
     const blocked = await call('POST', '/agent/analyze', {});
     expect(blocked.status).toBe(429);
     expect(blocked.body.safeguard).toBe('usage_limit');
     expect(blocked.body.overridable).toBe(false);
     expect(agentCalls).toBe(5);
+  });
+
+  test('R1.2: 10 simultaneous analyses for a free user give 5 passes and 5 × 429', async () => {
+    const results = await Promise.all(Array.from({ length: 10 }, () => call('POST', '/agent/analyze', {})));
+
+    expect(results.filter((r) => r.status === 200)).toHaveLength(5);
+    expect(results.filter((r) => r.status === 429)).toHaveLength(5);
+    expect(agentCalls).toBe(5);
+  });
+
+  test('R2.8: a Redis failure with no code on a safeguards route gives 503, not 500', async () => {
+    const { MaxRetriesPerRequestError } = require('ioredis/built/errors');
+    const logger = require('../../../utils/logger');
+    const errorSpy = jest.spyOn(logger, 'error').mockImplementation(() => logger);
+    const store = new MemoryStore();
+    store.get = async () => { throw new MaxRetriesPerRequestError(1); };
+    const app = express();
+    app.use(express.json());
+    app.use('/api/safeguards', createSafeguardsRouter({
+      moodService: new MoodService({ store }),
+      sessionService: new SessionService({ store }),
+      usageService: new UsageService({ store })
+    }));
+    app.use(errorMiddleware);
+    const down = await new Promise((resolve) => {
+      const s = app.listen(0, () => resolve(s));
+    });
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${down.address().port}/api/safeguards/usage`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get('retry-after')).toBe('30');
+      expect(await response.json()).toEqual({ error: 'Service temporarily unavailable. Please try again shortly.' });
+      expect(errorSpy).toHaveBeenCalledWith('store_unavailable', {
+        errorName: 'MaxRetriesPerRequestError',
+        method: 'GET',
+        path: '/api/safeguards/usage'
+      });
+    } finally {
+      errorSpy.mockRestore();
+      await new Promise((resolve) => down.close(resolve));
+    }
+  });
+
+  test('R1.7: GET /usage reports the count and limit without taking a slot', async () => {
+    await call('POST', '/agent/analyze', {});
+    await call('POST', '/agent/analyze', {});
+
+    for (let i = 0; i < 3; i++) {
+      const { status, body } = await call('GET', '/api/safeguards/usage');
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ allowed: true, count: 2, limit: 5, hardLimit: true });
+    }
+    expect(await usageService.getTodayCount('u1')).toBe(2);
   });
 });

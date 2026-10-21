@@ -26,22 +26,26 @@ function crisisCheckMiddleware(field = 'query') {
 }
 
 /**
- * Enforce daily analysis limits. An analysis is only counted once the
- * request completes successfully. If usage can't be checked the analysis is
- * refused with 503 (fail closed), so the limit always applies.
+ * Enforce daily analysis limits. A slot is taken, in one atomic step, before
+ * the analysis starts, so simultaneous requests can't all get through. If the
+ * request then fails (status 400 or above) or the client goes away before the
+ * analysis starts, the slot is given back (once: release() ignores repeats).
+ * The slot is on req.usageSlot so a background analysis that fails later can
+ * give it back too. If a slot can't be taken the analysis is refused with 503
+ * (fail closed), so the limit always applies.
  */
 function usageLimitMiddleware(usageService = new UsageService()) {
   return async (req, res, next) => {
     let usage;
     try {
       const override = Boolean(req.body && req.body.override);
-      usage = await withTimeout(usageService.checkAnalysis(req.user, { override }));
+      usage = await withTimeout(usageService.reserveAnalysis(req.user, { override }));
     } catch (error) {
       logger.error('usage_limit_unavailable', errorFields(error));
       return sendUnavailable(res);
     }
 
-    if (!usage.allowed) {
+    if (!usage.granted) {
       return res.status(429).json({
         error: 'Daily analysis limit reached',
         safeguard: 'usage_limit',
@@ -52,15 +56,23 @@ function usageLimitMiddleware(usageService = new UsageService()) {
       });
     }
 
+    const { slot } = usage;
+    req.usageSlot = slot;
+
     if (usage.message) {
       res.setHeader('X-Safeguard-Usage-Reminder', 'soft-limit');
     }
 
     res.on('finish', () => {
-      if (res.statusCode < 400) {
-        usageService.recordAnalysis(req.user.id).catch((error) => {
-          logger.error('usage_record_failed', errorFields(error));
-        });
+      if (res.statusCode >= 400) {
+        slot.release();
+      }
+    });
+    // A disconnect before the analysis starts gives the slot back; once it
+    // has started (slot.markStarted(), in the route) only a failure does
+    res.on('close', () => {
+      if (!res.writableFinished && !slot.started) {
+        slot.release();
       }
     });
 

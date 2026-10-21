@@ -1,6 +1,6 @@
 # 017 — Usage-Limit Concurrency: Design
 
-**Status:** Approved (2026-10-21)
+**Status:** Approved (2026-10-21; amended after review round 1 for D3–D5, approved 2026-10-21)
 **Requirements:** ./requirements.md
 
 ## Overview
@@ -61,7 +61,7 @@ POST /api/agent/analyze
 **`middleware/safeguards.middleware.js` — `usageLimitMiddleware`**
 - It calls `withTimeout(usageService.reserveAnalysis(...))`. If that throws, it logs `usage_limit_unavailable` and calls `sendUnavailable(res)`, as today.
 - If the slot isn't granted, it answers 429 with the same body as today.
-- If the slot is granted, it sets `req.usageSlot` and adds the header when `message` is set. It then listens for `res.on('finish')`, and when `res.statusCode >= 400` it calls `slot.release()`. It also listens for `res.on('close')`: if `!res.writableFinished`, it calls `slot.release()`. Both paths can fire, and the `released` flag means the slot is given back only once (R1.4).
+- If the slot is granted, it sets `req.usageSlot` and adds the header when `message` is set. It then listens for `res.on('finish')`, and when `res.statusCode >= 400` it calls `slot.release()`. It also listens for `res.on('close')`: if `!res.writableFinished` and the slot hasn't been marked started, it calls `slot.release()`. The route calls `slot.markStarted()` just before `handleAnalysis`, so from then on a disconnect leaves the slot used, and only `onFailed` or a failing response (≥ 400) gives it back (D4). Both paths can fire, and the `released` flag means the slot is given back only once (R1.4).
 
 **`routes/agent.routes.js` / `controllers/agent.controller.js`**
 - `handleAnalysis(body, user, { onFailed } = {})`: after `startTask`, `done.then((result) => { if (!result || result.status !== 'completed') onFailed?.(); })`. `done` already never rejects, because `startTask` catches its errors. A crashed run resolves `undefined`, and that counts as failed (R1.8).
@@ -75,16 +75,17 @@ POST /api/agent/analyze
 - **`db/migrate.js`**: when run from the command line, it uses `createPool({ timeouts: false })`. `migrate(pool)` itself doesn't change, and tests still inject their own pool.
 
 **`utils/store-errors.js`** (new): `isStoreUnavailable(err)`. It is true for:
-- `ServiceUnavailableError`.
-- Node socket codes: `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `ENOTFOUND`, `EAI_AGAIN`, `EHOSTUNREACH`, `EPIPE`.
+- Node socket codes: `ECONNREFUSED`, `ECONNRESET`, `ETIMEDOUT`, `ENOTFOUND`, `EAI_AGAIN`, `EHOSTUNREACH`, `EPIPE`, `ENETUNREACH`, `ENETDOWN`, `EHOSTDOWN`, `ECONNABORTED` (D5).
+- ioredis errors with no code (D5, R2.8): `err.name === 'MaxRetriesPerRequestError'`, and the fixed messages `Connection is closed.` and `Command timed out`, confirmed against the locked ioredis 5.8.2.
 - Postgres SQLSTATE codes: `57014` (`query_canceled`, raised by `statement_timeout`), `57P01`, `57P02`, `57P03`, `53300`, and any `08xxx` connection exception.
-- pg's own timeout and termination errors, which have no `code`. These are matched by exact comparison with the library's fixed strings: `timeout exceeded when trying to connect` (pg-pool), `Connection terminated due to connection timeout`, `Connection terminated unexpectedly` and `Query read timeout` (pg). The builder confirms these strings against the locked pg 8.23.1 and pg-pool 3.14.0 and records them in a test. The message is only compared, never logged or returned.
+- pg's own timeout and termination errors, which have no `code`. These are matched by exact comparison with the library's fixed strings: `timeout exceeded when trying to connect` (pg-pool), `Connection terminated due to connection timeout`, `Connection terminated unexpectedly`, `Query read timeout`, `timeout expired`, `Client has encountered a connection error and is not queryable` and `Client was closed and is not queryable` (pg). The builder confirms these strings against the locked pg 8.23.1 and pg-pool 3.14.0 and records them in a test. The message is only compared, never logged or returned.
 
 **`middleware/error.middleware.js`**
-- Before the current mapping, `if (isStoreUnavailable(err))`: log `store_unavailable` with `errorFields(err)`, `method` and `path` (R2.5), then return `sendUnavailable(res)` (R2.3). This also stops a `ServiceUnavailableError` from sending its internal message (for example, "Timed out waiting for the store") as it does today.
+- Before the current mapping, `if (isStoreUnavailable(err))`: log `store_unavailable` with `errorFields(err)`, `method` and `path` (R2.5), then return `sendUnavailable(res)` (R2.3). `ServiceUnavailableError` is **not** a store outage (D3): it keeps the existing path (`err.statusCode` 503 with its own message), because the only one that reaches a handler is chat's Claude failure, whose wording must not change.
 
 **`routes/chat.routes.js`**
 - It gets a router-level error handler as its last `router.use`. For `isStoreUnavailable(err)`, it logs as above and returns `sendUnavailable(res, { crisisResources: true })` (R2.4). Anything else goes to `next(err)`.
+- Claude failures (R2.7, D3): `chat.service.js` gives its existing `ServiceUnavailableError` a fixed `code: 'COMPANION_UNAVAILABLE'`. The chat error handler answers it with `sendUnavailable(res, { crisisResources: true, message: err.message })` (`sendUnavailable` gains an optional `message`, default `UNAVAILABLE_MESSAGE`), logs `companion_unavailable` with `errorFields`, and in the streaming path sends `event: error` with that message, `status: 503` and `resources`.
 - In the streaming path, after streaming has begun, a store-unavailable error sends `event: error` with `{ error: UNAVAILABLE_MESSAGE, status: 503, resources: CRISIS_RESOURCES }`. Other errors are handled as today. `utils/unavailable.js` exports `UNAVAILABLE_MESSAGE` for this.
 
 **Frontend** (`frontend/src/services/chat.service.js`): the `error` event handler attaches `data` to the thrown error (`Object.assign(new Error(data.error), { status: data.status, data })`). `Chat.jsx` already reads `err.data.resources` for the send path. It also gets the same handling in the two load paths (opening a conversation and listing conversations), so a 503 there shows the resources too.
@@ -123,7 +124,10 @@ In **`config/redis.js`**, the module keeps `let outage = null` (`{ startedAt, fa
 |---|---|
 | Reserve fails or doesn't answer within 1.5 s | 503 and no analysis (R1.6, 016 R3.1). If Redis applies the increment after the timeout, that slot stays used: the count can be too high, never too low. |
 | Reserve reply isn't an integer pair | 503 (fail closed) |
-| Request ends ≥ 400, or the client disconnects | The slot is given back once (R1.4) |
+| Request ends ≥ 400, or the client disconnects before the analysis starts | The slot is given back once (R1.4) |
+| Client disconnects after the analysis started | The slot stays used (D4) |
+| Claude fails in chat | 503 with the companion message plus resources; `companion_unavailable` logged (R2.7) |
+| Redis unreachable on any request path | 503, plus resources on chat (R2.8) |
 | Background task fails, times out or crashes | The slot is given back once (R1.8) |
 | Giving a slot back fails | `usage_release_failed` is logged and the slot stays used (R1.6) |
 | Postgres connection takes over 2 s, a query is cancelled at 5 s, or the socket fails | 503 plus `Retry-After`, and chat also returns resources (R2.3, R2.4) |
@@ -141,7 +145,7 @@ In **`config/redis.js`**, the module keeps `let outage = null` (`{ startedAt, fa
 |---|---|
 | R1.1, R1.2 | Unit: `usage.service.test.js` with `MemoryStore`, where 10 parallel `reserveAnalysis` calls for a free user give exactly 5 grants. `MemoryStore.eval` is extended to run `RESERVE_SCRIPT` and `RELEASE_SCRIPT` (matched by identity with the exported constants, still in one step). **Integration (real Redis, CI):** the same check against Redis, and a middleware-level test with 10 simultaneous requests giving 5 × pass and 5 × 429. |
 | R1.3 | Unit: paid tier at 10 with no override gets an overridable 429 and the count is unchanged. With override it is granted, the header is set and the count is 11. |
-| R1.4 | Unit (middleware): `finish` with 400 or 500 gives the slot back, `close` before finish gives it back, and `finish` followed by `close` gives it back only once. A 202 doesn't give it back. |
+| R1.4 | Unit (middleware): `finish` with 400 or 500 gives the slot back, `close` before finish gives it back, and `finish` followed by `close` gives it back only once. A 202 doesn't give it back. `close` after `markStarted()` doesn't give it back (D4). |
 | R1.5 | Unit: reserve on 23:59:59Z and release after midnight decrements the earlier day's key. Release on 0 stays at 0. |
 | R1.6 | Unit: reserve rejects or times out, giving 503, and the handler isn't called. A release failure logs `usage_release_failed` with name and code only. |
 | R1.7 | Unit: `GET /usage` leaves the count unchanged. |

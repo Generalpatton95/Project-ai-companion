@@ -59,7 +59,7 @@ describeWithRedis('rate-limit count script (real Redis)', () => {
     await close(client);
   });
 
-  test('R1.1, R2.1: counts 1, 2, 3', async () => {
+  test('016 R1.1, 016 R2.1: counts 1, 2, 3', async () => {
     const key = `${prefix}counts`;
 
     expect(await client.eval(COUNT_SCRIPT, 1, key, WINDOW_SECONDS)).toBe(1);
@@ -67,7 +67,7 @@ describeWithRedis('rate-limit count script (real Redis)', () => {
     expect(await client.eval(COUNT_SCRIPT, 1, key, WINDOW_SECONDS)).toBe(3);
   });
 
-  test('R1.1, R2.1: the expiry is set on the first count and not reset by later ones', async () => {
+  test('016 R1.1, 016 R2.1: the expiry is set on the first count and not reset by later ones', async () => {
     const key = `${prefix}expiry`;
 
     await client.eval(COUNT_SCRIPT, 1, key, WINDOW_SECONDS);
@@ -82,7 +82,7 @@ describeWithRedis('rate-limit count script (real Redis)', () => {
     expect(later).toBeLessThanOrEqual(42);
   });
 
-  test('R1.1, R2.1: a count left without an expiry gets one', async () => {
+  test('016 R1.1, 016 R2.1: a count left without an expiry gets one', async () => {
     const key = `${prefix}no-expiry`;
     await client.set(key, 5);
     expect(await client.ttl(key)).toBe(-1);
@@ -93,7 +93,7 @@ describeWithRedis('rate-limit count script (real Redis)', () => {
     expect(ttl).toBeLessThanOrEqual(WINDOW_SECONDS);
   });
 
-  test('R2.1: the user limiter counts through the real client', async () => {
+  test('016 R2.1: the user limiter counts through the real client', async () => {
     const userId = `${prefix}user`;
     const next = jest.fn();
     const res = fakeResponse();
@@ -121,7 +121,7 @@ describeWithRedis('unreachable Redis (real client)', () => {
     await close(client);
   });
 
-  test('R1.2: the IP limiter answers 503 within 1.5s', async () => {
+  test('016 R1.2: the IP limiter answers 503 within 1.5s', async () => {
     const res = fakeResponse();
     const next = jest.fn();
     const started = Date.now();

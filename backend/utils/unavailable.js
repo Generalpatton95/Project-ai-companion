@@ -30,15 +30,16 @@ function withTimeout(promise, ms = DEFAULT_TIMEOUT_MS) {
 /**
  * Answer 503 when a check can't run. Chat also lists the crisis resources so
  * someone who is struggling during an outage still sees where to get help.
+ * `message` replaces the standard text (chat's Claude failure keeps its own).
  */
-function sendUnavailable(res, { crisisResources = false } = {}) {
+function sendUnavailable(res, { crisisResources = false, message = UNAVAILABLE_MESSAGE } = {}) {
   return res
     .status(503)
     .set('Retry-After', String(RETRY_AFTER_SECONDS))
     .json({
-      error: UNAVAILABLE_MESSAGE,
+      error: message,
       ...(crisisResources && { resources: CRISIS_RESOURCES })
     });
 }
 
-module.exports = { withTimeout, sendUnavailable };
+module.exports = { withTimeout, sendUnavailable, UNAVAILABLE_MESSAGE };

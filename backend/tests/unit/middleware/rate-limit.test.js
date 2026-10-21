@@ -75,7 +75,7 @@ describe('ipRateLimitMiddleware', () => {
     return { ip, body: { email: 'player@example.com', password: 'correct horse' } };
   }
 
-  test('R1.1: a failing store gives 503 with Retry-After and the handler is not called', async () => {
+  test('016 R1.1: a failing store gives 503 with Retry-After and the handler is not called', async () => {
     const res = fakeResponse();
     const next = jest.fn();
 
@@ -87,7 +87,7 @@ describe('ipRateLimitMiddleware', () => {
     expect(res.body).toEqual(UNAVAILABLE);
   });
 
-  test('R1.2: a hanging store gives 503 within 1.5s', async () => {
+  test('016 R1.2: a hanging store gives 503 within 1.5s', async () => {
     jest.useFakeTimers();
     const res = fakeResponse();
     const next = jest.fn();
@@ -101,7 +101,7 @@ describe('ipRateLimitMiddleware', () => {
     expect(res.headers['Retry-After']).toBe('30');
   });
 
-  test('R1.3, R4.4: the failure log has an event name and error code only (no IP, body or message)', async () => {
+  test('016 R1.3, R4.4: the failure log has an event name and error code only (no IP, body or message)', async () => {
     await ipRateLimitMiddleware('auth', { store: failingStore() })(authRequest(), fakeResponse(), jest.fn());
 
     expect(errorSpy).toHaveBeenCalledWith('rate_limit_unavailable', expect.objectContaining({ errorCode: 'ECONNREFUSED' }));
@@ -113,7 +113,7 @@ describe('ipRateLimitMiddleware', () => {
     expect(logged).not.toContain('ECONNREFUSED 10.0.0.5');
   });
 
-  test('R1.1: the count and its expiry are set in one store call', async () => {
+  test('016 R1.1: the count and its expiry are set in one store call', async () => {
     const store = countingStore();
 
     await ipRateLimitMiddleware('auth', { store })(authRequest(), fakeResponse(), jest.fn());
@@ -123,7 +123,7 @@ describe('ipRateLimitMiddleware', () => {
     expect(await store.memory.ttl(`ratelimit:auth:ip:${ip}`)).toBe(WINDOW_SECONDS);
   });
 
-  test('R1.1: a working store still counts and limits; the 429 has no resources', async () => {
+  test('016 R1.1: a working store still counts and limits; the 429 has no resources', async () => {
     const store = countingStore();
     const limiter = ipRateLimitMiddleware('auth', { store });
     const next = jest.fn();
@@ -166,7 +166,7 @@ describe('rateLimitMiddleware', () => {
     return next;
   }
 
-  test.each(['query', 'analyze'])('R2.1: %s gives a plain 503 when the store fails, and the handler is not called', async (type) => {
+  test.each(['query', 'analyze'])('016 R2.1: %s gives a plain 503 when the store fails, and the handler is not called', async (type) => {
     const res = fakeResponse();
     const next = jest.fn();
 
@@ -178,7 +178,7 @@ describe('rateLimitMiddleware', () => {
     expect(res.body).toEqual(UNAVAILABLE);
   });
 
-  test('R2.2: chat with crisisResources gives 503 + resources matching CRISIS_RESOURCES', async () => {
+  test('016 R2.2: chat with crisisResources gives 503 + resources matching CRISIS_RESOURCES', async () => {
     const res = fakeResponse();
     const next = jest.fn();
 
@@ -189,7 +189,7 @@ describe('rateLimitMiddleware', () => {
     expect(res.body).toEqual({ ...UNAVAILABLE, resources: CRISIS_RESOURCES });
   });
 
-  test('R2.3: a hanging store gives 503 within 1.5s', async () => {
+  test('016 R2.3: a hanging store gives 503 within 1.5s', async () => {
     jest.useFakeTimers();
     const res = fakeResponse();
     const next = jest.fn();
@@ -203,7 +203,7 @@ describe('rateLimitMiddleware', () => {
     expect(res.body.resources).toEqual(CRISIS_RESOURCES);
   });
 
-  test('R2.3: the failure log has an event name and error code only (no ids, body or message)', async () => {
+  test('016 R2.3: the failure log has an event name and error code only (no ids, body or message)', async () => {
     await rateLimitMiddleware('chat', { store: failingStore() })(userRequest(), fakeResponse(), jest.fn());
 
     expect(errorSpy).toHaveBeenCalledWith('rate_limit_unavailable', expect.objectContaining({ errorCode: 'ECONNREFUSED' }));
@@ -214,7 +214,7 @@ describe('rateLimitMiddleware', () => {
     expect(logged).not.toContain('secret-detail');
   });
 
-  test('R2.1: the count and its expiry are set in one store call', async () => {
+  test('016 R2.1: the count and its expiry are set in one store call', async () => {
     const store = countingStore();
 
     await rateLimitMiddleware('query', { store })(userRequest(), fakeResponse(), jest.fn());
@@ -224,7 +224,7 @@ describe('rateLimitMiddleware', () => {
     expect(await store.memory.ttl('ratelimit:query:u1')).toBe(WINDOW_SECONDS);
   });
 
-  test('R2.1: a count left without an expiry gets one, and an existing expiry is not reset', async () => {
+  test('016 R2.1: a count left without an expiry gets one, and an existing expiry is not reset', async () => {
     const store = countingStore();
     await store.memory.incr('ratelimit:query:u1'); // e.g. left behind by a crash
     expect(await store.memory.ttl('ratelimit:query:u1')).toBe(-1);
@@ -238,7 +238,7 @@ describe('rateLimitMiddleware', () => {
     expect(await store.memory.get('ratelimit:query:u1')).toBe('3');
   });
 
-  test('R2.1: two simultaneous first requests count 2', async () => {
+  test('016 R2.1: two simultaneous first requests count 2', async () => {
     const store = countingStore();
     const limiter = rateLimitMiddleware('analyze', { store });
     const next = jest.fn();
@@ -252,7 +252,7 @@ describe('rateLimitMiddleware', () => {
     expect(await store.memory.get('ratelimit:analyze:u1')).toBe('2');
   });
 
-  test('R2.1: a working store still counts and limits; the query 429 has no resources', async () => {
+  test('016 R2.1: a working store still counts and limits; the query 429 has no resources', async () => {
     const limiter = rateLimitMiddleware('analyze', { store: countingStore() });
     const next = await fillUp(limiter, 10);
     expect(next).toHaveBeenCalledTimes(10);
@@ -271,7 +271,7 @@ describe('rateLimitMiddleware', () => {
     expect(queryRes.body).not.toHaveProperty('resources');
   });
 
-  test('R2.4: the chat 429 carries CRISIS_RESOURCES', async () => {
+  test('016 R2.4: the chat 429 carries CRISIS_RESOURCES', async () => {
     const limiter = rateLimitMiddleware('chat', { store: countingStore(), crisisResources: true });
     const next = await fillUp(limiter, 30);
     expect(next).toHaveBeenCalledTimes(30);
@@ -284,7 +284,7 @@ describe('rateLimitMiddleware', () => {
     expect(res.body).toMatchObject({ error: 'Rate limit exceeded', resources: CRISIS_RESOURCES });
   });
 
-  test('R2.1: remaining-count header still counts down', async () => {
+  test('016 R2.1: remaining-count header still counts down', async () => {
     const limiter = rateLimitMiddleware('analyze', { store: countingStore() });
     const first = fakeResponse();
     await limiter(userRequest(), first, jest.fn());
@@ -321,7 +321,7 @@ describe('rateLimitMiddleware', () => {
     expect(errorSpy).toHaveBeenCalledWith('rate_limit_unavailable', expect.objectContaining({ errorName: 'ServiceUnavailableError' }));
   });
 
-  test('R2.2, R2.4: the chat route turns on crisisResources', () => {
+  test('016 R2.2, 016 R2.4: the chat route turns on crisisResources', () => {
     jest.isolateModules(() => {
       const limiter = (req, res, next) => next();
       const mockRateLimit = jest.fn(() => limiter);

@@ -3,6 +3,8 @@
 // Conversation and message persistence (Postgres)
 // ============================================================================
 
+const { isStoreUnavailable } = require('../utils/store-errors');
+
 function toConversation(row) {
   if (!row) {
     return null;
@@ -30,6 +32,32 @@ function toMessage(row) {
 }
 
 const CONVERSATION_COLUMNS = 'id, user_id, title, personality, ended_reason, created_at, updated_at';
+
+/**
+ * Roll back after `error`. A failed rollback never hides the original error
+ * (the caller rethrows that). Returns an error when the connection can't be
+ * trusted (the store was unavailable, or the rollback failed), else undefined.
+ */
+async function rollback(client, error) {
+  try {
+    await client.query('ROLLBACK');
+  } catch (rollbackError) {
+    return rollbackError;
+  }
+  return isStoreUnavailable(error) ? error : undefined;
+}
+
+/**
+ * Return the client to the pool, or, with an error, have pg throw the broken
+ * connection away so the next query doesn't get it.
+ */
+function releaseClient(client, broken) {
+  if (broken) {
+    client.release(broken);
+  } else {
+    client.release();
+  }
+}
 
 class ChatRepository {
   constructor({ pool } = {}) {
@@ -90,6 +118,7 @@ class ChatRepository {
    */
   async appendMessages(conversationId, messages, { title, endedReason } = {}) {
     const client = await this.pool.connect();
+    let broken;
     try {
       await client.query('BEGIN');
       const saved = [];
@@ -119,10 +148,10 @@ class ChatRepository {
       await client.query('COMMIT');
       return saved;
     } catch (error) {
-      await client.query('ROLLBACK');
+      broken = await rollback(client, error);
       throw error;
     } finally {
-      client.release();
+      releaseClient(client, broken);
     }
   }
 }
