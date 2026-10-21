@@ -4,6 +4,11 @@ const { ClaudeProvider } = require('../integrations/claude');
 const { reportFormat } = require('./report-schemas');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { errorFields } = require('../utils/log-fields');
+
+// Shown for any failure that isn't one of the app's own errors: messages from
+// Claude, Redis, Postgres or Riot can carry the values that were sent
+const TASK_FAILED_MESSAGE = "The analysis couldn't be completed. Please try again.";
 
 class AgentOrchestrator {
   constructor(options = {}) {
@@ -31,7 +36,7 @@ class AgentOrchestrator {
     const done = this.runTask(taskId, task, state).catch((error) => {
       // runTask records its own failures; this only catches errors while
       // recording them (e.g. Redis down), which must not crash the process
-      logger.error('Background agent task crashed', { taskId, error: error.message });
+      logger.error('Background agent task crashed', { taskId, ...errorFields(error) });
     });
     return { taskId, done };
   }
@@ -84,16 +89,17 @@ class AgentOrchestrator {
       };
       
     } catch (error) {
-      logger.error('Task failed', { taskId, error: error.message });
+      logger.error('Task failed', { taskId, ...errorFields(error) });
       
       const partialResult = await this.handleError(taskId, error);
+      const message = error.statusCode ? error.message : TASK_FAILED_MESSAGE;
       
-      await this.stateManager.failTask(taskId, error.message);
+      await this.stateManager.failTask(taskId, message);
       
       return {
         taskId,
         status: 'failed',
-        error: error.message,
+        error: message,
         partialResult,
         duration: Date.now() - startTime
       };
@@ -175,7 +181,7 @@ class AgentOrchestrator {
         logger.error('Tool execution failed', { 
           taskId, 
           tool: toolCall.name, 
-          error: error.message 
+          ...errorFields(error)
         });
         
         results.push({
@@ -337,7 +343,7 @@ Your current task is to create a personalized improvement plan. In the report, s
         };
       }
     } catch (err) {
-      logger.error('Failed to generate partial result', { error: err.message });
+      logger.error('Failed to generate partial result', errorFields(err));
     }
     
     return null;
@@ -348,4 +354,4 @@ Your current task is to create a personalized improvement plan. In the report, s
   }
 }
 
-module.exports = { AgentOrchestrator };
+module.exports = { AgentOrchestrator, TASK_FAILED_MESSAGE };

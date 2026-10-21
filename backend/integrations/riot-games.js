@@ -6,7 +6,11 @@
 const axios = require('axios');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { errorFields } = require('../utils/log-fields');
 
+// Logs and thrown errors carry only the region and the error's name, code and
+// status: summoner names, PUUIDs and other ids identify a player, and Riot's
+// messages and response bodies can repeat them.
 class RiotGamesClient {
   constructor() {
     this.apiKey = config.riotGames.apiKey;
@@ -32,16 +36,12 @@ class RiotGamesClient {
         headers: { 'X-Riot-Token': this.apiKey }
       });
       
-      logger.debug('Fetched summoner', { summonerName, region });
+      logger.debug('Fetched summoner', { region });
       return response.data;
       
     } catch (error) {
-      logger.error('Riot API error - getSummoner', { 
-        summonerName, 
-        region, 
-        error: error.message 
-      });
-      throw new Error(`Failed to fetch summoner: ${error.message}`);
+      logger.error('Riot API error - getSummoner', { region, ...errorFields(error) });
+      throw new Error('Failed to fetch summoner');
     }
   }
 
@@ -60,15 +60,12 @@ class RiotGamesClient {
         headers: { 'X-Riot-Token': this.apiKey }
       });
       
-      logger.debug('Fetched match history', { puuid, count });
+      logger.debug('Fetched match history', { region, count });
       return response.data;
       
     } catch (error) {
-      logger.error('Riot API error - getMatchHistory', { 
-        puuid, 
-        error: error.message 
-      });
-      throw new Error(`Failed to fetch match history: ${error.message}`);
+      logger.error('Riot API error - getMatchHistory', { region, ...errorFields(error) });
+      throw new Error('Failed to fetch match history');
     }
   }
 
@@ -86,15 +83,12 @@ class RiotGamesClient {
         headers: { 'X-Riot-Token': this.apiKey }
       });
       
-      logger.debug('Fetched match details', { matchId });
+      logger.debug('Fetched match details', { region });
       return response.data;
       
     } catch (error) {
-      logger.error('Riot API error - getMatchDetails', { 
-        matchId, 
-        error: error.message 
-      });
-      throw new Error(`Failed to fetch match details: ${error.message}`);
+      logger.error('Riot API error - getMatchDetails', { region, ...errorFields(error) });
+      throw new Error('Failed to fetch match details');
     }
   }
 
@@ -111,15 +105,12 @@ class RiotGamesClient {
         headers: { 'X-Riot-Token': this.apiKey }
       });
       
-      logger.debug('Fetched ranked stats', { summonerId });
+      logger.debug('Fetched ranked stats', { region });
       return response.data;
       
     } catch (error) {
-      logger.error('Riot API error - getRankedStats', { 
-        summonerId, 
-        error: error.message 
-      });
-      throw new Error(`Failed to fetch ranked stats: ${error.message}`);
+      logger.error('Riot API error - getRankedStats', { region, ...errorFields(error) });
+      throw new Error('Failed to fetch ranked stats');
     }
   }
 

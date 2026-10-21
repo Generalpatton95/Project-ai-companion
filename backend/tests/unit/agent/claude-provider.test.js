@@ -1,5 +1,5 @@
 const { ClaudeProvider } = require('../../../integrations/claude');
-const { AgentOrchestrator } = require('../../../agent/orchestrator');
+const { AgentOrchestrator, TASK_FAILED_MESSAGE } = require('../../../agent/orchestrator');
 const { FakeAnthropic } = require('../../helpers/fake-anthropic');
 
 const TOOLS = [{
@@ -159,7 +159,8 @@ describe('AgentOrchestrator timeout', () => {
 
     const result = await orchestrator.executeTask({ type: 'match_analysis' });
 
-    expect(result).toMatchObject({ status: 'failed', error: 'Task timeout' });
+    // R4.6: a timeout is not an app error, so the generic message is reported
+    expect(result).toMatchObject({ status: 'failed', error: TASK_FAILED_MESSAGE });
     expect(client.requestOptions[0].signal.aborted).toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(client.requests).toHaveLength(1);

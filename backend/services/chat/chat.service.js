@@ -12,6 +12,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const config = require('../../config');
 const logger = require('../../utils/logger');
+const { errorFields } = require('../../utils/log-fields');
 const { ChatRepository } = require('../../models/chat.model');
 const { MoodService } = require('../safeguards/mood.service');
 const { detectCrisis, buildSafeguardResponse } = require('../safeguards/crisis-detection.service');
@@ -148,7 +149,7 @@ class ChatService {
     try {
       return (await this.moods.getSummary(userId)).tone;
     } catch (error) {
-      logger.warn('Mood summary unavailable for chat', { error: error.message });
+      logger.warn('Mood summary unavailable for chat', errorFields(error));
       return 'balanced';
     }
   }
@@ -227,9 +228,9 @@ class ChatService {
         throw new ChatAbortedError();
       }
       if (error instanceof Anthropic.APIError) {
-        logger.error('Claude API error in chat', { status: error.status, error: error.message });
+        logger.error('Claude API error in chat', errorFields(error));
       } else {
-        logger.error('Chat request failed', { error: error.message });
+        logger.error('Chat request failed', errorFields(error));
       }
       throw new ServiceUnavailableError('The companion is unavailable right now. Please try again in a moment.');
     }

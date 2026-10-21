@@ -6,6 +6,7 @@
 const { Pool } = require('pg');
 const config = require('./index');
 const logger = require('../utils/logger');
+const { errorFields } = require('../utils/log-fields');
 
 const pool = config.database.url
   ? new Pool({ connectionString: config.database.url })
@@ -18,7 +19,7 @@ const pool = config.database.url
     });
 
 pool.on('error', (err) => {
-  logger.error('Postgres pool error', { error: err.message });
+  logger.error('Postgres pool error', errorFields(err));
 });
 
 module.exports = pool;

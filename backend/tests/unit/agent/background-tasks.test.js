@@ -4,6 +4,11 @@ const { AgentController } = require('../../../controllers/agent.controller');
 const { ClaudeProvider } = require('../../../integrations/claude');
 const { FakeAnthropic } = require('../../helpers/fake-anthropic');
 const { MemoryStore } = require('../../helpers/memory-store');
+const { ServiceUnavailableError } = require('../../../utils/errors');
+const { TASK_TYPES } = require('../../../agent/report-schemas');
+const logger = require('../../../utils/logger');
+
+const TASK_FAILED_MESSAGE = "The analysis couldn't be completed. Please try again.";
 
 const TOOLS = [{ name: 'game_api', description: 'x', input_schema: { type: 'object', properties: {} } }];
 const registry = { getToolSchemas: () => TOOLS, getTool: () => ({ execute: async () => ({ success: true, data: {} }) }) };
@@ -51,17 +56,43 @@ describe('background analysis', () => {
     expect(finished).toMatchObject({ status: 'completed', result: { summary: 'Ward more.' } });
   });
 
-  test('a failed analysis is reported as failed', async () => {
+  test('R4.6: a failed analysis is reported as failed with the generic message', async () => {
     const { client, orchestrator, controller } = setup();
     client.queue(new Error('Claude unavailable'));
 
     const { taskId, done } = await orchestrator.startTask({ type: 'match_analysis', context: { userId: user.id } });
     await done;
 
-    expect(await controller.getTaskStatus(taskId, user)).toMatchObject({ status: 'failed', error: 'Claude unavailable' });
+    expect(await controller.getTaskStatus(taskId, user)).toMatchObject({ status: 'failed', error: TASK_FAILED_MESSAGE });
   });
 
-  test('a timed-out analysis is reported as failed', async () => {
+  test('R4.6: a plain Error never reaches the stored state, the run result or getTaskStatus', async () => {
+    const { client, stateManager, orchestrator, controller } = setup();
+    client.queue(new Error('secret detail: relation users for player@example.com'));
+
+    const { taskId, done } = await orchestrator.startTask({ type: 'match_analysis', context: { userId: user.id } });
+    const run = await done;
+
+    expect(run.error).toBe(TASK_FAILED_MESSAGE);
+    expect((await stateManager.getTask(taskId)).error).toBe(TASK_FAILED_MESSAGE);
+    const status = await controller.getTaskStatus(taskId, user);
+    expect(status.error).toBe(TASK_FAILED_MESSAGE);
+    expect(JSON.stringify([run, status, await stateManager.getTask(taskId)])).not.toContain('secret detail');
+  });
+
+  test('R4.6: an app error keeps its own message', async () => {
+    const { client, stateManager, orchestrator, controller } = setup();
+    client.queue(new ServiceUnavailableError('The companion is unavailable right now.'));
+
+    const { taskId, done } = await orchestrator.startTask({ type: 'match_analysis', context: { userId: user.id } });
+    const run = await done;
+
+    expect(run.error).toBe('The companion is unavailable right now.');
+    expect((await stateManager.getTask(taskId)).error).toBe('The companion is unavailable right now.');
+    expect((await controller.getTaskStatus(taskId, user)).error).toBe('The companion is unavailable right now.');
+  });
+
+  test('R4.6: a timed-out analysis is reported as failed', async () => {
     const { client, orchestrator, controller } = setup({ timeout: 30 });
     client.queue((options) => new Promise((resolve, reject) => {
       options.signal.addEventListener('abort', () => reject(new Error('aborted')));
@@ -70,7 +101,7 @@ describe('background analysis', () => {
     const { taskId, done } = await orchestrator.startTask({ type: 'match_analysis', context: { userId: user.id } });
     await done;
 
-    expect(await controller.getTaskStatus(taskId, user)).toMatchObject({ status: 'failed', error: 'Task timeout' });
+    expect(await controller.getTaskStatus(taskId, user)).toMatchObject({ status: 'failed', error: TASK_FAILED_MESSAGE });
   });
 
   test('errors while recording a failure do not escape as unhandled rejections', async () => {
@@ -91,6 +122,44 @@ describe('background analysis', () => {
   test('task_type is required (400, not 500)', async () => {
     const { controller } = setup();
     await expect(controller.handleAnalysis({}, user)).rejects.toMatchObject({ name: 'ValidationError' });
+  });
+
+  test('R5.1, R4.1: an unknown task_type is a ValidationError, and is never logged or started', async () => {
+    const { controller, orchestrator } = setup();
+    const startTask = jest.spyOn(orchestrator, 'startTask');
+    const infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => logger);
+
+    try {
+      for (const taskType of ['player@example.com', 'MATCH_ANALYSIS', 'toString', 42, ['match_analysis']]) {
+        const error = await controller.handleAnalysis({ task_type: taskType }, user).catch((e) => e);
+        expect(error).toMatchObject({ name: 'ValidationError', message: 'task_type must be one of: match_analysis, strategy_planning, meta_research' });
+      }
+      expect(startTask).not.toHaveBeenCalled();
+      expect(JSON.stringify(infoSpy.mock.calls)).not.toContain('player@example.com');
+    } finally {
+      infoSpy.mockRestore();
+      startTask.mockRestore();
+    }
+  });
+
+  test('R5.1: the known task types are the report types the frontend offers', () => {
+    expect(TASK_TYPES).toEqual(['match_analysis', 'strategy_planning', 'meta_research']);
+  });
+
+  test.each(['match_analysis', 'strategy_planning', 'meta_research'])('R4.1: a known task_type (%s) is logged as the fixed value', async (taskType) => {
+    const { client, controller } = setup();
+    const { reply, release } = gate();
+    client.queue(reply);
+    const infoSpy = jest.spyOn(logger, 'info').mockImplementation(() => logger);
+
+    try {
+      const started = await controller.handleAnalysis({ task_type: taskType }, user);
+      expect(started.status).toBe('running');
+      expect(infoSpy).toHaveBeenCalledWith('Handling analysis', { userId: user.id, taskType });
+    } finally {
+      infoSpy.mockRestore();
+      release(FakeAnthropic.reply('Done.'));
+    }
   });
 
   test("another user's task and a missing task both look like 404", async () => {

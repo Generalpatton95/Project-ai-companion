@@ -6,6 +6,7 @@
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const logger = require('../utils/logger');
+const { errorFields } = require('../utils/log-fields');
 
 function authMiddleware(req, res, next) {
   try {
@@ -29,7 +30,7 @@ function authMiddleware(req, res, next) {
     next();
     
   } catch (error) {
-    logger.error('Auth middleware error', { error: error.message });
+    logger.error('Auth middleware error', errorFields(error));
     
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ 
