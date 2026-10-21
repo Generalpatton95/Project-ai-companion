@@ -29,6 +29,8 @@ const MAX_MESSAGE_LENGTH = 4000;
 const TITLE_LENGTH = 60;
 const MAX_TOKENS = 16000;
 const DEFAULT_PERSONALITY = 'friend';
+// The code on the error thrown when Claude can't be reached (see routes/chat.routes.js)
+const COMPANION_UNAVAILABLE = 'COMPANION_UNAVAILABLE';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const REFUSAL_REPLY =
@@ -232,7 +234,11 @@ class ChatService {
       } else {
         logger.error('Chat request failed', errorFields(error));
       }
-      throw new ServiceUnavailableError('The companion is unavailable right now. Please try again in a moment.');
+      // A fixed code lets the chat route answer with this wording plus the
+      // crisis resources (it isn't a store outage)
+      const unavailable = new ServiceUnavailableError('The companion is unavailable right now. Please try again in a moment.');
+      unavailable.code = COMPANION_UNAVAILABLE;
+      throw unavailable;
     }
 
     let assistant;
@@ -256,5 +262,6 @@ module.exports = {
   ChatAbortedError,
   prepareForReplay,
   DEFAULT_PERSONALITY,
-  MAX_MESSAGE_LENGTH
+  MAX_MESSAGE_LENGTH,
+  COMPANION_UNAVAILABLE
 };

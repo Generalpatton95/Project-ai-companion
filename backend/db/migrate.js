@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const { errorFields } = require('../utils/log-fields');
+const { isStoreUnavailable } = require('../utils/store-errors');
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 
@@ -29,6 +30,8 @@ async function migrate(pool) {
     }
     const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
     const client = await pool.connect();
+    // Set when the connection can't be trusted, so pg throws it away
+    let broken;
     try {
       await client.query('BEGIN');
       await client.query(sql);
@@ -36,14 +39,24 @@ async function migrate(pool) {
       await client.query('COMMIT');
       ran.push(file);
     } catch (error) {
-      await client.query('ROLLBACK');
+      // A failed rollback must not hide the migration's own failure
+      try {
+        await client.query('ROLLBACK');
+        broken = isStoreUnavailable(error) ? error : undefined;
+      } catch (rollbackError) {
+        broken = rollbackError;
+      }
       // Keep Postgres's code (e.g. 42P07), not its message
       const failure = new Error(`Migration ${file} failed`);
       failure.code = error.code;
       failure.migration = file;
       throw failure;
     } finally {
-      client.release();
+      if (broken) {
+        client.release(broken);
+      } else {
+        client.release();
+      }
     }
   }
 
@@ -53,7 +66,10 @@ async function migrate(pool) {
 module.exports = { migrate };
 
 if (require.main === module) {
-  const pool = require('../config/database');
+  // Migrations can run long, so they get no statement or query time limit
+  // (R2.2); the connect limit stays
+  const { createPool } = require('../config/database');
+  const pool = createPool({ timeouts: false });
   migrate(pool)
     .then((ran) => {
       console.log(ran.length ? `Applied: ${ran.join(', ')}` : 'Database is up to date');

@@ -42,6 +42,24 @@ describe('sendMessageStream', () => {
     await expect(sendMessageStream('c1', 'hi')).rejects.toMatchObject({ status: 500, message: 'Something went wrong. Please try again.' });
   });
 
+  it('R2.4: an error event keeps its data, so outage resources reach the page', async () => {
+    const data = {
+      error: 'Service temporarily unavailable. Please try again shortly.',
+      status: 503,
+      resources: [{ name: '988 Suicide & Crisis Lifeline (US)', contact: 'Call or text 988' }]
+    };
+    vi.stubGlobal('fetch', vi.fn(async () => sseResponse([
+      `event: delta\ndata: {"text":"Hi"}\n\nevent: error\ndata: ${JSON.stringify(data)}\n\n`
+    ])));
+
+    const error = await sendMessageStream('c1', 'hi').catch((e) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe(data.error);
+    expect(error.status).toBe(503);
+    expect(error.data).toEqual(data);
+  });
+
   it('throws when the stream ends without a done event', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => sseResponse([`event: delta\ndata: {"text":"Hi"}\n\n`])));
     await expect(sendMessageStream('c1', 'hi')).rejects.toThrow('interrupted');

@@ -51,9 +51,11 @@ class AgentController {
 
   /**
    * Start a complex analysis in the background. Poll getTaskStatus with the
-   * returned taskId for progress and the result.
+   * returned taskId for progress and the result. `onFailed` is called if the
+   * run doesn't complete (it fails, times out or crashes), so the caller can
+   * give the user's daily usage slot back.
    */
-  async handleAnalysis(body, user) {
+  async handleAnalysis(body, user, { onFailed } = {}) {
     const { task_type, parameters, context = {} } = body;
 
     if (!task_type) {
@@ -79,7 +81,15 @@ class AgentController {
       }
     };
 
-    const { taskId } = await this.orchestrator.startTask(task);
+    const { taskId, done } = await this.orchestrator.startTask(task);
+
+    // `done` never rejects (startTask catches its errors); a crashed run
+    // resolves undefined, which counts as failed
+    done.then((result) => {
+      if (!result || result.status !== 'completed') {
+        onFailed?.();
+      }
+    });
 
     return {
       taskId,

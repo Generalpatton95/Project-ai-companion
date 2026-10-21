@@ -44,7 +44,9 @@ export async function sendMessageStream(id, content, { onDelta, signal } = {}) {
       } else if (event === 'done') {
         result = data;
       } else if (event === 'error') {
-        throw Object.assign(new Error(data.error), { status: data.status });
+        // `data` rides along like apiRequest's, so an outage's crisis
+        // resources (data.resources) reach the page
+        throw Object.assign(new Error(data.error), { status: data.status, data });
       }
     }
   });

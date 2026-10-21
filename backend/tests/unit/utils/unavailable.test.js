@@ -1,4 +1,4 @@
-const { withTimeout, sendUnavailable } = require('../../../utils/unavailable');
+const { withTimeout, sendUnavailable, UNAVAILABLE_MESSAGE } = require('../../../utils/unavailable');
 const { ServiceUnavailableError } = require('../../../utils/errors');
 const { CRISIS_RESOURCES } = require('../../../services/safeguards/messages');
 
@@ -29,20 +29,20 @@ describe('withTimeout', () => {
     jest.restoreAllMocks();
   });
 
-  test('R1.2: a value that resolves in time passes through', async () => {
+  test('016 R1.2: a value that resolves in time passes through', async () => {
     jest.useFakeTimers();
     await expect(withTimeout(Promise.resolve(7))).resolves.toBe(7);
     expect(jest.getTimerCount()).toBe(0);
   });
 
-  test('R1.2: a rejection passes through unchanged and clears the timer', async () => {
+  test('016 R1.2: a rejection passes through unchanged and clears the timer', async () => {
     jest.useFakeTimers();
     const error = new Error('boom');
     await expect(withTimeout(Promise.reject(error))).rejects.toBe(error);
     expect(jest.getTimerCount()).toBe(0);
   });
 
-  test('R1.2: a promise that never settles rejects with ServiceUnavailableError at 1500ms', async () => {
+  test('016 R1.2: a promise that never settles rejects with ServiceUnavailableError at 1500ms', async () => {
     jest.useFakeTimers();
     let settled = false;
     const pending = withTimeout(new Promise(() => {})).catch((error) => {
@@ -59,7 +59,7 @@ describe('withTimeout', () => {
     expect(error).toBeInstanceOf(ServiceUnavailableError);
   });
 
-  test('R1.2: the timeout can be set per call', async () => {
+  test('016 R1.2: the timeout can be set per call', async () => {
     jest.useFakeTimers();
     const pending = withTimeout(new Promise(() => {}), 200);
     const assertion = expect(pending).rejects.toBeInstanceOf(ServiceUnavailableError);
@@ -82,7 +82,7 @@ describe('withTimeout', () => {
 });
 
 describe('sendUnavailable', () => {
-  test('R1.1: responds 503 with Retry-After: 30 and the standard message', () => {
+  test('016 R1.1: responds 503 with Retry-After: 30 and the standard message', () => {
     const res = fakeResponse();
     sendUnavailable(res);
 
@@ -91,7 +91,7 @@ describe('sendUnavailable', () => {
     expect(res.body).toEqual({ error: 'Service temporarily unavailable. Please try again shortly.' });
   });
 
-  test('R2.2: includes CRISIS_RESOURCES only when asked for', () => {
+  test('016 R2.2: includes CRISIS_RESOURCES only when asked for', () => {
     const plain = fakeResponse();
     sendUnavailable(plain, { crisisResources: false });
     expect(plain.body).not.toHaveProperty('resources');
@@ -101,6 +101,26 @@ describe('sendUnavailable', () => {
     expect(chat.statusCode).toBe(503);
     expect(chat.body).toEqual({
       error: 'Service temporarily unavailable. Please try again shortly.',
+      resources: CRISIS_RESOURCES
+    });
+  });
+
+  test('R2.4: UNAVAILABLE_MESSAGE is the message sendUnavailable sends, unchanged', () => {
+    const res = fakeResponse();
+    sendUnavailable(res);
+
+    expect(UNAVAILABLE_MESSAGE).toBe('Service temporarily unavailable. Please try again shortly.');
+    expect(res.body.error).toBe(UNAVAILABLE_MESSAGE);
+  });
+
+  test('R2.7: an optional message replaces the standard one; status, Retry-After and resources are unchanged', () => {
+    const res = fakeResponse();
+    sendUnavailable(res, { crisisResources: true, message: 'The companion is unavailable right now. Please try again in a moment.' });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.headers['Retry-After']).toBe('30');
+    expect(res.body).toEqual({
+      error: 'The companion is unavailable right now. Please try again in a moment.',
       resources: CRISIS_RESOURCES
     });
   });
